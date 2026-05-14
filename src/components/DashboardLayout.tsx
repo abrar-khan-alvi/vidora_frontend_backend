@@ -141,9 +141,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             <Menu size={24} />
           </button>
           
-          <div className="lg:hidden">
-            <img src="/logo.png" alt="Vidora Logo" className="h-8 w-auto" />
-          </div>
+
           <div className="flex items-center gap-4 lg:gap-6">
             <button className="relative text-[#EAEAEA] hover:text-white transition-colors bg-[#1A1A20] p-2 rounded-full border border-white/[0.04]">
               <Bell size={18} />
