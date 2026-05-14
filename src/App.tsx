@@ -10,9 +10,14 @@ import {
   AccountCreatedScreen
 } from './Screens';
 import { DashboardScreen } from './Dashboard';
+import { LandingPage } from './pages/LandingPage';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('LOGIN');
+  const [currentScreen, setCurrentScreen] = useState('LANDING');
+
+  if (currentScreen === 'LANDING') {
+    return <LandingPage setScreen={setCurrentScreen} />;
+  }
 
   if (currentScreen === 'DASHBOARD') {
     return <DashboardScreen setScreen={setCurrentScreen} />;

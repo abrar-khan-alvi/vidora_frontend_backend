@@ -35,7 +35,9 @@ const suggestionTags = [
   "Golden Hour", "Soft Shadows", "8k Resolution", "Masterpiece", "Hyper-detailed"
 ];
 
-const mockPrompts = [
+type PromptEntry = { id: number; title: string; date: string; tags: string[]; content: string; };
+
+const mockPrompts: PromptEntry[] = [
   { id: 1, title: "Golden Hour Coffee", date: "2 hours ago", tags: ["Cinematic", "Warm"], content: "A professional close-up shot of a ceramic coffee cup with steam sitting on a weathered wooden table with soft morning light." },
   { id: 2, title: "Neon Cyberpunk City", date: "5 hours ago", tags: ["Cyberpunk", "Neon"], content: "Cyberpunk city street at night with neon signs and rainy reflection..." },
   { id: 3, title: "Minimalist Logo", date: "1 day ago", tags: ["Minimalist", "Design"], content: "A minimalist logo design for a modern tech startup with clean lines..." },
@@ -74,9 +76,33 @@ export const PromptonContent = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [libraryPrompts, setLibraryPrompts] = useState<PromptEntry[]>(mockPrompts);
+  const [isSaved, setIsSaved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedPrompt = mockPrompts.find(p => p.id === selectedPromptId);
+  const selectedPrompt = libraryPrompts.find(p => p.id === selectedPromptId);
+
+  const filteredPrompts = libraryPrompts.filter(p =>
+    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  const handleSave = () => {
+    const title = idea.trim()
+      ? idea.trim().split(/\s+/).slice(0, 5).join(' ')
+      : 'Generated Prompt';
+    const styleLabel = stylePresets.find(s => s.id === selectedStyle)?.label || 'Custom';
+    setLibraryPrompts(prev => [{
+      id: Date.now(),
+      title,
+      date: 'Just now',
+      tags: [styleLabel],
+      content: resultSegments.map(s => s.content).join(' ')
+    }, ...prev]);
+    setIsSaved(true);
+  };
 
   const handleUploadClick = () => fileInputRef.current?.click();
 
@@ -99,6 +125,7 @@ export const PromptonContent = () => {
   };
 
   const handleGenerate = () => {
+    setIsSaved(false);
     setView('thinking');
     setTimeout(() => setView('result'), 1500);
   };
@@ -143,24 +170,33 @@ export const PromptonContent = () => {
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7A7A80]" />
-                <input 
-                  type="text" 
-                  placeholder="Search prompts..." 
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                  placeholder="Search prompts..."
                   className="w-full bg-[#131316] border border-white/5 rounded-full pl-11 pr-5 py-3 text-[14px] text-white focus:outline-none focus:border-[#9758FF]/50 transition-colors"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {mockPrompts.map((prompt) => (
-                <div 
+              {filteredPrompts.length === 0 && (
+                <div className="col-span-2 py-16 flex flex-col items-center gap-3 text-center">
+                  <Search size={32} className="text-[#3A3A40]" />
+                  <p className="text-[#5A5A60] text-[14px]">No prompts match <span className="text-white">"{searchTerm}"</span></p>
+                  <button onClick={() => setSearchTerm('')} className="text-[#9758FF] text-[13px] hover:underline">Clear search</button>
+                </div>
+              )}
+              {filteredPrompts.map((prompt: PromptEntry) => (
+                <div
                   key={prompt.id}
                   onClick={() => { setSelectedPromptId(prompt.id); setView('details'); }}
                   className="bg-[#131316]/50 backdrop-blur-xl border border-white/5 rounded-2xl p-6 hover:border-[#9758FF]/30 transition-all group cursor-pointer"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex flex-wrap gap-2">
-                      {prompt.tags.map(tag => (
+                      {prompt.tags.map((tag: string) => (
                         <span key={tag} className="text-[10px] font-bold text-[#9758FF] bg-[#9758FF]/10 px-2.5 py-1 rounded-md uppercase tracking-wider">{tag}</span>
                       ))}
                     </div>
@@ -490,18 +526,30 @@ export const PromptonContent = () => {
               ))}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 mt-6">
-              <button 
-                onClick={() => handleCopy(resultSegments.map(s => s.content).join("\n"), 99)}
-                className="flex-2 bg-white text-black py-4.5 px-8 rounded-2xl font-bold text-[16px] hover:bg-[#EAEAEA] transition-all flex items-center justify-center gap-2"
+            <div className="flex flex-col gap-4 mt-6">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => handleCopy(resultSegments.map(s => s.content).join("\n"), 99)}
+                  className="flex-1 bg-white text-black py-4 px-8 rounded-2xl font-bold text-[16px] hover:bg-[#EAEAEA] transition-all flex items-center justify-center gap-2"
+                >
+                  <Copy size={18} /> Copy Master Prompt
+                </button>
+                <button
+                  onClick={handleGenerate}
+                  className="flex-1 bg-[#161619] border border-white/5 text-white py-4 rounded-2xl font-bold text-[16px] hover:bg-[#1B1B21] transition-all flex items-center justify-center gap-3"
+                >
+                  <RefreshCw size={18} /> Regenerate
+                </button>
+              </div>
+              <button
+                onClick={isSaved ? () => setView('list') : handleSave}
+                className={`w-full py-4 rounded-2xl font-bold text-[16px] transition-all flex items-center justify-center gap-2 ${
+                  isSaved
+                    ? 'bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/20'
+                    : 'bg-[#9758FF] hover:bg-[#854EE6] text-white shadow-[0_8px_25px_rgba(151,88,255,0.3)] active:scale-[0.98]'
+                }`}
               >
-                <Copy size={18} /> Copy Master Prompt
-              </button>
-              <button 
-                onClick={handleGenerate}
-                className="flex-1 bg-[#161619] border border-white/5 text-white py-4.5 rounded-2xl font-bold text-[16px] hover:bg-[#1B1B21] transition-all flex items-center justify-center gap-3"
-              >
-                <RefreshCw size={18} /> Regenerate Variation
+                {isSaved ? <><Check size={18} /> View in Library</> : <><Plus size={18} /> Save to Library</>}
               </button>
             </div>
           </motion.div>
