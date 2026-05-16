@@ -69,3 +69,4 @@ src/
 ---
 
 © 2026 Vidora AI. All rights reserved. Built for the future of creative production.
+# Lalaneeds_front_backend
