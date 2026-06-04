@@ -191,17 +191,24 @@ def run_video_generation(job_id: str):
 
 
 def _resolve_voice_id(job: GenerationJob) -> str:
-    """Resolve the TTS job's selected Voice to its provider voice_id. Errors if
-    it isn't ready (still cloning) or not found."""
+    """Resolve the TTS job to a provider voice_id — either a cloned Voice (by our
+    id) or a built-in stock voice (ElevenLabs premade id passed through)."""
     from studio.models import Voice
 
     voice_id = job.input_params.get("voice")
-    voice = Voice.objects.filter(id=voice_id, user=job.user).first()
-    if not voice:
-        raise RuntimeError("Selected voice was not found.")
-    if voice.status != Voice.Status.READY or not voice.provider_voice_id:
-        raise RuntimeError("Selected voice is still being cloned — try again once it's ready.")
-    return voice.provider_voice_id
+    if voice_id:
+        voice = Voice.objects.filter(id=voice_id, user=job.user).first()
+        if not voice:
+            raise RuntimeError("Selected voice was not found.")
+        if voice.status != Voice.Status.READY or not voice.provider_voice_id:
+            raise RuntimeError("Selected voice is still being cloned — try again once it's ready.")
+        return voice.provider_voice_id
+
+    stock = job.input_params.get("stock_voice_id")
+    if stock:
+        return stock
+
+    raise RuntimeError("No voice selected.")
 
 
 @shared_task

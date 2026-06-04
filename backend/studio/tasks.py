@@ -57,6 +57,36 @@ def create_and_poll_reference(character_id: str):
     poll_reference.delay(character_id, 0)
 
 
+def sync_reference_status(char: Character) -> bool:
+    """One live status check; finalize the Character if Higgsfield reports the
+    reference ready/failed. Returns True when resolved, False if still pending.
+
+    Shared by the background poller and the references list endpoint, so a stuck
+    "pending" (e.g. after a worker restart dropped the poll chain) self-heals the
+    next time the user loads their references."""
+    if char.status != Character.Status.PENDING or not char.provider_character_id:
+        return char.status != Character.Status.PENDING
+    try:
+        state = higgsfield.get_custom_reference(char.provider_character_id)
+    except Exception:
+        return False
+
+    status = str(state.get("status", "")).lower()
+    if status in higgsfield.READY_STATUSES:
+        char.status = Character.Status.READY
+        thumb = state.get("thumbnail_url")
+        if thumb:
+            char.thumbnail_url = thumb
+        char.save(update_fields=["status", "thumbnail_url"])
+        return True
+    if status in higgsfield.FAILED_STATUSES:
+        char.status = Character.Status.FAILED
+        char.error = f"Training {status}."
+        char.save(update_fields=["status", "error"])
+        return True
+    return False
+
+
 @shared_task
 def poll_reference(character_id: str, attempt: int = 0):
     """Check a custom-reference's training status once, then finalize the Character
@@ -69,25 +99,8 @@ def poll_reference(character_id: str, attempt: int = 0):
     if char.status != Character.Status.PENDING or not char.provider_character_id:
         return  # already resolved (or no reference to poll)
 
-    try:
-        state = higgsfield.get_custom_reference(char.provider_character_id)
-    except Exception:
-        state = None
-
-    if state is not None:
-        status = str(state.get("status", "")).lower()
-        if status in higgsfield.READY_STATUSES:
-            char.status = Character.Status.READY
-            thumb = state.get("thumbnail_url")
-            if thumb:
-                char.thumbnail_url = thumb
-            char.save(update_fields=["status", "thumbnail_url"])
-            return
-        if status in higgsfield.FAILED_STATUSES:
-            char.status = Character.Status.FAILED
-            char.error = f"Training {status}."
-            char.save(update_fields=["status", "error"])
-            return
+    if sync_reference_status(char):
+        return
 
     if attempt + 1 >= _POLL_MAX_ATTEMPTS:
         char.status = Character.Status.FAILED

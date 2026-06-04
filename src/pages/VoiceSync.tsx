@@ -5,8 +5,9 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { generationApi, pollJob, type GenerationJob } from '../lib/api/generation';
-import { voiceApi, type Voice } from '../lib/api/voice';
+import { voiceApi, type Voice, type VoiceSelection } from '../lib/api/voice';
 import { CloneVoiceModal } from '../components/CloneVoiceModal';
+import { VoicePickerModal } from '../components/VoicePickerModal';
 
 const MAX_CHARS = 5000;
 
@@ -34,13 +35,14 @@ async function downloadAudio(url: string, name: string) {
 export const VoiceSyncContent = () => {
   const [view, setView] = useState<'list' | 'create' | 'detail'>('list');
   const [voices, setVoices] = useState<Voice[]>([]);
-  const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
+  const [selected, setSelected] = useState<VoiceSelection | null>(null);
   const [text, setText] = useState('');
   const [job, setJob] = useState<GenerationJob | null>(null);
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<GenerationJob[]>([]);
   const [detailJob, setDetailJob] = useState<GenerationJob | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const loadVoices = () => voiceApi.list().then(setVoices).catch(() => {});
   const loadHistory = () => generationApi.listAudio().then(setHistory).catch(() => {});
@@ -56,15 +58,17 @@ export const VoiceSyncContent = () => {
     return () => clearInterval(t);
   }, [voices]);
 
-  const readyVoices = voices.filter((v) => v.status === 'ready');
   const clips = history.filter((h) => h.status === 'succeeded' && h.outputs.length > 0);
 
-  const run = async (speakText: string, voiceId: string | null) => {
+  const run = async (speakText: string, sel: VoiceSelection | null) => {
     const content = speakText.trim();
-    if (!content || !voiceId || running) return;
+    if (!content || !sel || running) return;
     setRunning(true);
     try {
-      const created = await generationApi.createTTS({ voice: voiceId, text: content });
+      const body = sel.kind === 'cloned'
+        ? { voice: sel.id, text: content }
+        : { stock_voice_id: sel.id, text: content };
+      const created = await generationApi.createTTS(body);
       setJob(created);
       await pollJob(created.id, setJob);
     } catch {
@@ -78,8 +82,12 @@ export const VoiceSyncContent = () => {
   const openCreate = () => {
     setJob(null);
     loadVoices();
-    // Default to the first ready voice if none selected.
-    setSelectedVoice((cur) => cur ?? readyVoices[0]?.id ?? null);
+    // Pre-select the first ready cloned voice if the user has one.
+    setSelected((cur) => {
+      if (cur) return cur;
+      const r = voices.find((v) => v.status === 'ready');
+      return r ? { kind: 'cloned', id: r.id, name: r.name } : null;
+    });
     setView('create');
   };
   const openDetail = (h: GenerationJob) => {
@@ -88,45 +96,6 @@ export const VoiceSyncContent = () => {
   };
 
   const isWorking = job && ['queued', 'submitted', 'processing'].includes(job.status);
-
-  // ---- VOICE PICKER (shared) ---------------------------------------------
-  const VoicePicker = () => (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[12px] text-[#7A7A80]">Voice <span className="text-[#5A5A60]">(the cloned voice to speak in)</span></span>
-        <button onClick={() => setCloneOpen(true)} className="flex items-center gap-1.5 text-[12px] text-[#9758FF] font-medium hover:gap-2.5 transition-all">
-          <Plus size={14} /> Clone a voice
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        {voices.map((v) => {
-          const ready = v.status === 'ready';
-          const sel = selectedVoice === v.id;
-          return (
-            <button
-              key={v.id}
-              onClick={() => ready && setSelectedVoice(v.id)}
-              disabled={!ready}
-              title={v.status === 'failed' ? v.error || 'Cloning failed' : v.name}
-              className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium border transition-all flex items-center gap-2 ${
-                sel ? 'bg-[#9758FF]/15 border-[#9758FF]/80 text-white shadow-[0_0_14px_rgba(151,88,255,0.25)]'
-                   : 'bg-[#08080A]/40 border-[#24242B] text-[#A1A1A5] hover:border-[#3A3A40]'
-              } ${!ready ? 'opacity-60 cursor-not-allowed' : ''}`}
-            >
-              <span className="h-5 w-5 rounded bg-[#9758FF]/20 flex items-center justify-center"><Mic size={11} className="text-[#9758FF]" /></span>
-              <span className="truncate max-w-[140px]">{v.name}</span>
-              {v.status === 'pending' && <span className="flex items-center gap-1 text-[#7A7A80] text-[11px]"><Loader2 size={11} className="animate-spin" /> Cloning…</span>}
-              {v.status === 'failed' && <span className="text-[#F87171] text-[11px]">failed</span>}
-              {sel && <Check size={13} className="text-[#9758FF]" />}
-            </button>
-          );
-        })}
-        {voices.length === 0 && (
-          <span className="text-[12px] text-[#5A5A60]">No voices yet — clone one to start generating speech.</span>
-        )}
-      </div>
-    </div>
-  );
 
   // ---- LIST VIEW ----------------------------------------------------------
   if (view === 'list') {
@@ -280,19 +249,32 @@ export const VoiceSyncContent = () => {
             <span className="absolute bottom-3 right-4 text-[11px] text-[#5A5A60]">{text.length} / {MAX_CHARS}</span>
           </div>
 
-          <VoicePicker />
-
-          {readyVoices.length === 0 && (
-            <div className="flex items-center gap-2 text-[12.5px] text-[#C9A8FF] bg-[#9758FF]/10 border border-[#9758FF]/20 rounded-lg px-3 py-2">
-              <Mic size={14} /> You need a ready voice first.
-              <button onClick={() => setCloneOpen(true)} className="underline font-medium hover:text-white">Clone a voice</button>
+          {/* Voice selector */}
+          <div className="flex flex-col gap-2">
+            <span className="text-[12px] text-[#7A7A80]">Voice <span className="text-[#5A5A60]">(clone your own, or pick a built-in voice)</span></span>
+            <div className="flex flex-wrap items-center gap-2">
+              {selected ? (
+                <span className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-lg text-[12.5px] font-medium border bg-[#9758FF]/15 border-[#9758FF]/80 text-white shadow-[0_0_14px_rgba(151,88,255,0.25)]">
+                  <span className="h-5 w-5 rounded bg-[#9758FF]/25 flex items-center justify-center"><Mic size={11} className="text-[#C9A8FF]" /></span>
+                  <span className="truncate max-w-[160px]">{selected.name}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-[#9F86D9]">{selected.kind === 'cloned' ? 'cloned' : 'built-in'}</span>
+                </span>
+              ) : (
+                <span className="px-3 py-1.5 rounded-lg text-[12.5px] text-[#7A7A80] border border-dashed border-[#2E2E36]">No voice selected</span>
+              )}
+              <button
+                onClick={() => setPickerOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12.5px] font-medium border bg-[#08080A]/40 border-[#24242B] text-[#A1A1A5] hover:border-[#3A3A40] transition-all"
+              >
+                <Mic size={14} className="text-[#9758FF]" /> {selected ? 'Change voice' : 'Choose a voice'}
+              </button>
             </div>
-          )}
+          </div>
 
           <div className="flex items-center pt-1">
             <button
-              onClick={() => run(text, selectedVoice)}
-              disabled={!text.trim() || !selectedVoice || running}
+              onClick={() => run(text, selected)}
+              disabled={!text.trim() || !selected || running}
               className="ml-auto group relative overflow-hidden bg-gradient-to-r from-[#9758FF] to-[#C24DFF] disabled:opacity-50 disabled:saturate-50 text-white px-7 py-2.5 rounded-xl font-semibold text-[14px] transition-all flex items-center gap-2 shadow-[0_10px_34px_-6px_rgba(151,88,255,0.6)] active:scale-[0.98]"
             >
               <span className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors" />
@@ -338,7 +320,7 @@ export const VoiceSyncContent = () => {
                     className="flex items-center gap-2 bg-[#9758FF] hover:bg-[#854EE6] text-white px-4 py-2 rounded-xl text-[13px] font-semibold transition-all">
                     <Download size={15} /> Download MP3
                   </button>
-                  <button onClick={() => run(text, selectedVoice)} disabled={running}
+                  <button onClick={() => run(text, selected)} disabled={running}
                     className="flex items-center gap-2 bg-[#9758FF]/10 hover:bg-[#9758FF]/20 border border-[#9758FF]/30 text-[#C9A8FF] px-4 py-2 rounded-xl text-[13px] font-semibold transition-all disabled:opacity-50">
                     <RefreshCw size={15} /> Regenerate
                   </button>
@@ -350,6 +332,15 @@ export const VoiceSyncContent = () => {
       )}
 
       {cloneOpen && <CloneVoiceModal onClose={() => setCloneOpen(false)} onCreated={loadVoices} />}
+      {pickerOpen && (
+        <VoicePickerModal
+          voices={voices}
+          selected={selected}
+          onPick={setSelected}
+          onClose={() => setPickerOpen(false)}
+          onCloneClick={() => setCloneOpen(true)}
+        />
+      )}
     </div>
   );
 };

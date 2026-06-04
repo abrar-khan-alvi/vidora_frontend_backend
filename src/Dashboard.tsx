@@ -7,6 +7,7 @@ import { VideoGenerationContent } from './pages/VideoGeneration';
 import { VoiceSyncContent } from './pages/VoiceSync';
 import { SubscriptionsContent } from './pages/Subscriptions';
 import { HistoryLogsContent } from './pages/HistoryLogs';
+import { AccountSettingsContent } from './pages/AccountSettings';
 
 export const DashboardScreen = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export const DashboardScreen = () => {
       case 'voicesync': return <VoiceSyncContent />;
       case 'subscriptions': return <SubscriptionsContent />;
       case 'history': return <HistoryLogsContent />;
+      case 'settings': return <AccountSettingsContent />;
       case 'overview':
       default: return <OverviewContent />;
     }

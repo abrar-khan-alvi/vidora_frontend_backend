@@ -76,3 +76,28 @@ def list_voices() -> list[dict]:
     resp = httpx.get(f"{_base()}/v1/voices", headers=_headers(), timeout=30)
     resp.raise_for_status()
     return resp.json().get("voices", [])
+
+
+def list_stock_voices() -> list[dict]:
+    """The ElevenLabs built-in ("premade") library voices, shaped for the UI.
+
+    These are ready-made voices a user can pick for TTS without cloning. Each
+    has a preview clip and gender/age tags. Returns {id, name, description,
+    preview_url, gender, age}.
+    """
+    out = []
+    for v in list_voices():
+        if v.get("category") != "premade":
+            continue
+        full = v.get("name") or ""
+        name, _, desc = full.partition(" - ")
+        labels = v.get("labels") or {}
+        out.append({
+            "id": v.get("voice_id"),
+            "name": name.strip() or full,
+            "description": desc.strip() or v.get("description") or "",
+            "preview_url": v.get("preview_url") or "",
+            "gender": labels.get("gender", ""),
+            "age": labels.get("age", ""),
+        })
+    return out

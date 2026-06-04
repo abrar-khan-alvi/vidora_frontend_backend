@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { Logo } from './ui';
 import { useAuth } from '../auth/AuthContext';
+import { generationApi } from '../lib/api/generation';
+
+const HISTORY_SEEN_KEY = 'vidora:history:lastSeen';
 
 const navItems = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
@@ -44,6 +47,34 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [hasNewHistory, setHasNewHistory] = useState(false);
+
+  // Show a notification dot on the bell when a generation appears that the user
+  // hasn't seen. "Seen" = the newest job's timestamp at the last History visit,
+  // persisted so it survives reloads. Viewing History clears the dot.
+  useEffect(() => {
+    let active = true;
+    const check = async () => {
+      try {
+        const jobs = await generationApi.listAll();
+        if (!active) return;
+        const newest = jobs[0]?.created_at ?? '';
+        const seen = localStorage.getItem(HISTORY_SEEN_KEY);
+        if (activeTab === 'history' || seen === null) {
+          // On the History page (or first ever load) → treat everything as seen.
+          if (newest) localStorage.setItem(HISTORY_SEEN_KEY, newest);
+          setHasNewHistory(false);
+        } else {
+          setHasNewHistory(Boolean(newest) && newest > seen);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    check();
+    const t = setInterval(check, 15000);
+    return () => { active = false; clearInterval(t); };
+  }, [activeTab]);
 
   const handleLogout = () => {
     logout();
@@ -152,9 +183,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           
 
           <div className="flex items-center gap-4 lg:gap-6">
-            <button className="relative text-[#EAEAEA] hover:text-white transition-colors bg-[#1A1A20] p-2 rounded-full border border-white/[0.04]">
+            <button
+              onClick={() => { setHasNewHistory(false); setActiveTab('history'); }}
+              title={hasNewHistory ? 'New activity — view History logs' : 'History logs'}
+              className="relative text-[#EAEAEA] hover:text-white transition-colors bg-[#1A1A20] p-2 rounded-full border border-white/[0.04] hover:border-[#9758FF]/40"
+            >
               <Bell size={18} />
-              <span className="absolute top-0 right-0 w-[9px] h-[9px] bg-[#22c55e] rounded-full border-2 border-[#1A1A20]"></span>
+              {hasNewHistory && (
+                <span className="absolute top-0 right-0 flex h-[9px] w-[9px]">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[#22c55e] opacity-75 animate-ping"></span>
+                  <span className="relative inline-flex h-[9px] w-[9px] rounded-full bg-[#22c55e] border-2 border-[#1A1A20]"></span>
+                </span>
+              )}
             </button>
             
             <div className="relative">
@@ -181,7 +221,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                     onClick={() => setIsProfileDropdownOpen(false)}
                   />
                   <div className="absolute right-0 mt-3 w-56 bg-[#161619] border border-[#24242B] rounded-[14px] shadow-xl z-50 overflow-hidden py-1.5 flex flex-col">
-                    <button 
+                    <button
+                      onClick={() => { setIsProfileDropdownOpen(false); setActiveTab('settings'); }}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#1B1B21] transition-colors text-[#EAEAEA] text-[14px]"
                     >
                       <Settings size={16} className="text-[#a1a1a5]" />
