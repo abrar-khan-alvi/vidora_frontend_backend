@@ -39,37 +39,44 @@ export const Input = ({ label, type = 'text', className = '', ...props }: InputP
   );
 };
 
-export const OTPInput = () => {
-  const [otp, setOtp] = useState(['', '', '', '', '']);
+type OTPInputProps = {
+  value: string;
+  onChange: (code: string) => void;
+  length?: number;
+};
+
+export const OTPInput = ({ value, onChange, length = 5 }: OTPInputProps) => {
   const inputRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
-  const handleChange = (value: string, index: number) => {
-    if (isNaN(Number(value))) return;
-    const newOtp = [...otp];
-    newOtp[index] = value.substring(value.length - 1);
-    setOtp(newOtp);
+  const handleChange = (raw: string, index: number) => {
+    const digit = raw.replace(/\D/g, '').slice(-1);
+    if (raw && !digit) return; // ignore non-numeric input
 
-    // Move to next input if value is entered
-    if (value && index < 4) {
+    const next = value.split('');
+    next[index] = digit;
+    onChange(next.join('').slice(0, length));
+
+    if (digit && index < length - 1) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+    if (e.key === 'Backspace' && !value[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
   return (
     <div className="flex gap-3 justify-center mb-10 mt-2">
-      {otp.map((val, i) => (
+      {Array.from({ length }).map((_, i) => (
         <input
           key={i}
-          ref={(el) => (inputRefs.current[i] = el)}
+          ref={(el) => { inputRefs.current[i] = el; }}
           type="text"
+          inputMode="numeric"
           maxLength={1}
-          value={val}
+          value={value[i] ?? ''}
           onChange={(e) => handleChange(e.target.value, i)}
           onKeyDown={(e) => handleKeyDown(e, i)}
           className="w-12 h-14 bg-transparent border border-[#3A3A40] rounded-[10px] text-center text-[18px] text-white focus:outline-none focus:border-[#9758FF] transition-colors"
@@ -79,13 +86,26 @@ export const OTPInput = () => {
   );
 };
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement>;
+export const FormError = ({ message }: { message?: string }) =>
+  message ? (
+    <div className="mb-4 -mt-1 text-left text-[13px] text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/20 rounded-[10px] px-3.5 py-2.5">
+      {message}
+    </div>
+  ) : null;
 
-export const Button = ({ children, className = '', ...props }: ButtonProps) => (
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  loading?: boolean;
+};
+
+export const Button = ({ children, className = '', loading = false, disabled, ...props }: ButtonProps) => (
   <button
-    className={`w-full bg-[#9758FF] hover:bg-[#854EE6] text-white rounded-[10px] py-3.5 text-[15px] font-medium transition-all active:scale-[0.98] ${className}`}
+    disabled={disabled || loading}
+    className={`w-full bg-[#9758FF] hover:bg-[#854EE6] text-white rounded-[10px] py-3.5 text-[15px] font-medium transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center gap-2 ${className}`}
     {...props}
   >
+    {loading && (
+      <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+    )}
     {children}
   </button>
 );

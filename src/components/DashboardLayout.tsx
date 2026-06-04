@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
-import { 
-  LayoutDashboard, 
-  Sparkles, 
-  ImagePlus, 
-  PlaySquare, 
-  Mic, 
-  RefreshCw, 
-  History, 
-  X, 
-  Menu, 
-  Bell, 
-  ChevronDown, 
-  Settings, 
+import { useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  Sparkles,
+  ImagePlus,
+  PlaySquare,
+  Mic,
+  RefreshCw,
+  History,
+  X,
+  Menu,
+  Bell,
+  ChevronDown,
+  Settings,
   LogOut,
   Zap
 } from 'lucide-react';
 import { Logo } from './ui';
+import { useAuth } from '../auth/AuthContext';
 
 const navItems = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
@@ -30,18 +32,25 @@ const navItems = [
 interface DashboardLayoutProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  setScreen: (screen: string) => void;
   children: React.ReactNode;
 }
 
-export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ 
-  activeTab, 
-  setActiveTab, 
-  setScreen, 
-  children 
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  activeTab,
+  setActiveTab,
+  children
 }) => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const displayName = user?.display_name?.trim() || user?.email?.split('@')[0] || 'Creator';
 
   return (
     <div className="flex bg-[#08080A] min-h-screen text-white w-full overflow-hidden absolute inset-0 z-50">
@@ -154,8 +163,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
               >
                 <div className="text-right hidden sm:block">
-                  <div className="text-[14px] font-medium text-[#EAEAEA] leading-tight">Dr. Jon Kabir</div>
-                  <div className="text-[12px] text-[#7A7A80]">User</div>
+                  <div className="text-[14px] font-medium text-[#EAEAEA] leading-tight">{displayName}</div>
+                  <div className="text-[12px] text-[#7A7A80] max-w-[160px] truncate">{user?.email ?? 'User'}</div>
                 </div>
                 <img 
                   src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" 
@@ -179,8 +188,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                       Account Settings
                     </button>
                     <div className="h-[1px] bg-[#24242B] my-1 mx-3" />
-                    <button 
-                      onClick={() => setScreen('LOGIN')}
+                    <button
+                      onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#EF4444]/10 transition-colors text-[#EF4444] text-[14px]"
                     >
                       <LogOut size={16} />
