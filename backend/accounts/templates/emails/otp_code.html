@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{ heading }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#08080A; -webkit-font-smoothing:antialiased; font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+  <!-- Preheader (hidden preview text) -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
+    {{ preheader }} &nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color:#08080A; padding:32px 12px;">
+    <tr>
+      <td align="center">
+
+        <!-- Card -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:460px; background-color:#161619; border:1px solid rgba(255,255,255,0.06); border-radius:18px; overflow:hidden;">
+
+          <!-- Brand -->
+          <tr>
+            <td align="center" style="padding:38px 40px 6px 40px;">
+              <div style="font-size:26px; font-weight:700; letter-spacing:3px; color:#FFFFFF;">VIDORA</div>
+              <div style="height:3px; width:46px; background-color:#9758FF; border-radius:3px; margin:14px auto 0 auto;"></div>
+            </td>
+          </tr>
+
+          <!-- Heading + intro -->
+          <tr>
+            <td align="center" style="padding:22px 44px 0 44px;">
+              <h1 style="margin:0 0 10px 0; font-size:20px; font-weight:600; color:#FFFFFF;">{{ heading }}</h1>
+              <p style="margin:0; font-size:14px; line-height:22px; color:#A1A1A5;">
+                {% if display_name %}Hi {{ display_name }},<br>{% endif %}{{ intro }}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Code -->
+          <tr>
+            <td align="center" style="padding:28px 40px 6px 40px;">
+              <div style="display:inline-block; background-color:#0F0F12; border:1px solid rgba(151,88,255,0.40); border-radius:14px; padding:18px 26px;">
+                <span style="font-size:34px; font-weight:700; letter-spacing:12px; color:#FFFFFF; padding-left:12px;">{{ code }}</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 26px 40px;">
+              <p style="margin:14px 0 0 0; font-size:12.5px; color:#7A7A80;">This code expires in {{ ttl_minutes }} minutes.</p>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 40px;">
+              <div style="height:1px; background-color:rgba(255,255,255,0.06); font-size:0; line-height:0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <!-- Security note -->
+          <tr>
+            <td align="center" style="padding:20px 44px 38px 44px;">
+              <p style="margin:0; font-size:12.5px; line-height:20px; color:#7A7A80;">
+                If you didn't request this, you can safely ignore this email — your account stays secure.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Footer -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:460px;">
+          <tr>
+            <td align="center" style="padding:18px 20px;">
+              <p style="margin:0; font-size:11px; color:#5A5A60;">&copy; Vidora — AI Content Studio</p>
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
