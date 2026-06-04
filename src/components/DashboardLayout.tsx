@@ -202,9 +202,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           </div>
         </header>
 
-        {/* Dynamic Content Wrapper */}
-        <main className="px-5 sm:px-10 pb-10 flex-1 w-full flex justify-center overflow-y-auto overflow-x-hidden">
-          <div className="w-full max-w-[1100px] flex justify-start min-w-0">
+        {/* Dynamic Content Wrapper. Prompton (a chat) fills the width and
+            left-aligns; other pages stay centered at a comfortable max width. */}
+        <main className={`px-5 sm:px-10 pb-10 flex-1 w-full flex overflow-y-auto overflow-x-hidden ${activeTab === 'prompton' ? 'justify-start' : 'justify-center'}`}>
+          <div className={`w-full flex justify-start min-w-0 ${activeTab === 'prompton' ? 'max-w-[1320px]' : 'max-w-[1100px]'}`}>
             {children}
           </div>
         </main>

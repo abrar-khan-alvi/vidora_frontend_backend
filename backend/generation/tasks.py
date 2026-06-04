@@ -5,7 +5,7 @@ from celery import shared_task
 from django.core.files.base import ContentFile
 from django.utils import timezone
 
-from providers import higgsfield
+from providers import elevenlabs, higgsfield
 from studio.models import Asset
 
 from . import credits
@@ -29,18 +29,20 @@ def _asset_hf_url(asset: Asset) -> str:
     return hf_url
 
 
-def _resolve_reference_urls(job: GenerationJob) -> list[str]:
-    """Upload the job's reference Assets to Higgsfield and return public URLs."""
-    ref_ids = job.input_params.get("references") or []
-    if not ref_ids:
-        return []
-    urls = []
-    by_id = {str(a.id): a for a in Asset.objects.filter(id__in=ref_ids, user=job.user)}
-    for ref_id in ref_ids:  # preserve user-chosen order
-        asset = by_id.get(ref_id)
-        if asset and asset.file:
-            urls.append(_asset_hf_url(asset))
-    return urls
+def _resolve_reference_style_id(job: GenerationJob) -> str | None:
+    """Resolve the job's selected reference (Character) to its Higgsfield
+    custom-reference id, used as Soul `style_id`. Errors if it isn't ready."""
+    char_id = job.input_params.get("reference")
+    if not char_id:
+        return None
+    from studio.models import Character
+
+    char = Character.objects.filter(id=char_id, user=job.user).first()
+    if not char:
+        raise RuntimeError("Selected reference was not found.")
+    if char.status != Character.Status.READY or not char.provider_character_id:
+        raise RuntimeError("Selected reference is still training — try again once it's ready.")
+    return char.provider_character_id
 
 
 def _frame_url(job: GenerationJob, param: str) -> str | None:
@@ -88,13 +90,16 @@ def run_image_generation(job_id: str):
     try:
         job.status = GenerationJob.Status.PROCESSING
         job.save(update_fields=["status"])
-        reference_urls = _resolve_reference_urls(job)
+        reference_id = _resolve_reference_style_id(job)
         urls = higgsfield.generate_image(
             prompt=params["prompt"],
             aspect=params.get("aspect", "1:1"),
             num_outputs=params.get("num_outputs", 1),
             seed=params.get("seed"),
-            reference_urls=reference_urls,
+            reference_id=reference_id,
+            reference_strength=params.get("reference_strength", 1.0),
+            style_id=params.get("style"),
+            style_strength=params.get("style_strength", 1.0),
         )
     except Exception as exc:  # provider/network failure
         job.status = GenerationJob.Status.FAILED
@@ -183,3 +188,67 @@ def run_video_generation(job_id: str):
     job.completed_at = timezone.now()
     job.save(update_fields=["output_asset_ids", "status", "credits_cost", "completed_at"])
     credits.record(job.user, -cost, "video_generation", job.id)
+
+
+def _resolve_voice_id(job: GenerationJob) -> str:
+    """Resolve the TTS job's selected Voice to its provider voice_id. Errors if
+    it isn't ready (still cloning) or not found."""
+    from studio.models import Voice
+
+    voice_id = job.input_params.get("voice")
+    voice = Voice.objects.filter(id=voice_id, user=job.user).first()
+    if not voice:
+        raise RuntimeError("Selected voice was not found.")
+    if voice.status != Voice.Status.READY or not voice.provider_voice_id:
+        raise RuntimeError("Selected voice is still being cloned — try again once it's ready.")
+    return voice.provider_voice_id
+
+
+@shared_task
+def run_tts_generation(job_id: str):
+    """Synthesize speech in a cloned voice (ElevenLabs), then store it as an audio Asset."""
+    try:
+        job = GenerationJob.objects.get(id=job_id)
+    except GenerationJob.DoesNotExist:
+        return
+    if job.status in GenerationJob.TERMINAL:
+        return
+
+    job.status = GenerationJob.Status.SUBMITTED
+    job.submitted_at = timezone.now()
+    job.attempts += 1
+    job.save(update_fields=["status", "submitted_at", "attempts"])
+
+    params = job.input_params
+    try:
+        job.status = GenerationJob.Status.PROCESSING
+        job.save(update_fields=["status"])
+        provider_voice_id = _resolve_voice_id(job)
+        text = (params.get("text") or "").strip()
+        if not text:
+            raise RuntimeError("No text to speak.")
+        audio = elevenlabs.text_to_speech(provider_voice_id, text)
+    except Exception as exc:  # provider/network failure
+        job.status = GenerationJob.Status.FAILED
+        job.error = str(exc)[:1000]
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "error", "completed_at"])
+        return
+
+    # ElevenLabs returns mp3 bytes directly — save them straight to an Asset.
+    asset = Asset(
+        user=job.user,
+        source=Asset.Source.GENERATED,
+        type=Asset.Type.AUDIO,
+        mime="audio/mpeg",
+        job_id=job.id,
+    )
+    asset.file.save(f"gen_{job.id}.mp3", ContentFile(audio), save=True)
+
+    cost = credits.COST["tts"]
+    job.output_asset_ids = [str(asset.id)]
+    job.status = GenerationJob.Status.SUCCEEDED
+    job.credits_cost = cost
+    job.completed_at = timezone.now()
+    job.save(update_fields=["output_asset_ids", "status", "credits_cost", "completed_at"])
+    credits.record(job.user, -cost, "tts_generation", job.id)

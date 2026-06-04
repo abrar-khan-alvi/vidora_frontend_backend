@@ -8,6 +8,7 @@ class GenerationJob(models.Model):
     class Kind(models.TextChoices):
         IMAGE = "image", "Image"
         VIDEO = "video", "Video"
+        AUDIO = "audio", "Audio"
 
     class Status(models.TextChoices):
         QUEUED = "queued", "Queued"

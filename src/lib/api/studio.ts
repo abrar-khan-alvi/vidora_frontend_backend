@@ -14,12 +14,30 @@ export interface UploadedAsset {
 }
 
 export const studioApi = {
-  /** The user's reusable reference-image library. */
+  /** The user's reusable photo library (uploaded images). */
   listReferences: () => apiFetch<UploadedAsset[]>('/studio/references/', { auth: true }),
   rename: (id: string, name: string) =>
     apiFetch<UploadedAsset>(`/studio/assets/${id}/`, { method: 'PATCH', auth: true, body: { name } }),
   remove: (id: string) =>
     apiFetch<null>(`/studio/assets/${id}/`, { method: 'DELETE', auth: true }),
+};
+
+/** A trained reference ("SoulId") created from one or more library photos. */
+export interface TrainedReference {
+  id: string;
+  name: string;
+  status: 'pending' | 'ready' | 'failed';
+  thumbnail_url: string;
+  error: string;
+  created_at: string;
+}
+
+export const referenceApi = {
+  list: () => apiFetch<TrainedReference[]>('/studio/characters/', { auth: true }),
+  create: (name: string, asset_ids: string[]) =>
+    apiFetch<TrainedReference>('/studio/characters/', { method: 'POST', auth: true, body: { name, asset_ids } }),
+  remove: (id: string) =>
+    apiFetch<null>(`/studio/characters/${id}/`, { method: 'DELETE', auth: true }),
 };
 
 /**

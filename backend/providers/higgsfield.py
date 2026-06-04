@@ -10,7 +10,10 @@ Soul endpoint shape: `higgsfield-ai/soul/<mode>` where mode is one of
 import os
 
 import higgsfield_client
+import httpx
 from django.conf import settings
+
+HF_BASE_URL = "https://platform.higgsfield.ai"
 
 
 def _ensure_credentials():
@@ -18,6 +21,63 @@ def _ensure_credentials():
         os.environ.setdefault("HF_API_KEY", settings.HIGGSFIELD_API_KEY)
     if settings.HIGGSFIELD_API_SECRET:
         os.environ.setdefault("HF_API_SECRET", settings.HIGGSFIELD_API_SECRET)
+
+
+def _auth_headers() -> dict:
+    key = f"{settings.HIGGSFIELD_API_KEY}:{settings.HIGGSFIELD_API_SECRET}"
+    return {
+        "Authorization": f"Key {key}",
+        "Content-Type": "application/json",
+        "User-Agent": "vidora",
+    }
+
+
+# --- Custom references (SoulId) ---------------------------------------------
+# Soul's "reference" model takes a `style_id` (UUID) — a TRAINED custom reference,
+# not an inline image. We create one from the user's photo(s), poll until it's
+# ready, then pass its id as `style_id` when generating.
+
+READY_STATUSES = {"completed", "ready", "succeeded", "success"}
+FAILED_STATUSES = {"failed", "error", "canceled", "cancelled", "nsfw"}
+
+
+def create_custom_reference(name: str, image_urls: list[str]) -> dict:
+    """Create a trained custom reference from Higgsfield-hosted image URLs.
+
+    Returns the provider record, e.g. {"id": ..., "status": "not_ready", ...}.
+    """
+    body = {
+        "name": name[:120] or "Reference",
+        "input_images": [{"type": "image_url", "image_url": u} for u in image_urls],
+    }
+    resp = httpx.post(
+        f"{HF_BASE_URL}/v1/custom-references", headers=_auth_headers(), json=body, timeout=60
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_custom_reference(ref_id: str) -> dict:
+    """Fetch a custom reference's current state (for status polling)."""
+    resp = httpx.get(
+        f"{HF_BASE_URL}/v1/custom-references/{ref_id}", headers=_auth_headers(), timeout=30
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def list_soul_styles() -> list[dict]:
+    """List Higgsfield's built-in Soul style presets (the `style_id` catalog).
+
+    Returns a list of {id, name, description, preview_url}. These are aesthetic
+    presets (a *look*), distinct from custom references (a *subject*).
+    """
+    resp = httpx.get(
+        f"{HF_BASE_URL}/v1/text2image/soul-styles", headers=_auth_headers(), timeout=30
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data if isinstance(data, list) else data.get("styles", [])
 
 
 def upload_reference(data: bytes, mime: str = "image/png") -> str:
@@ -29,11 +89,6 @@ def upload_reference(data: bytes, mime: str = "image/png") -> str:
     """
     _ensure_credentials()
     return higgsfield_client.upload(data, mime or "image/png")
-
-
-def _reference_payload(reference_urls) -> list[dict]:
-    """Shape reference URLs the way the Soul reference model expects."""
-    return [{"type": "image_url", "image_url": url} for url in reference_urls]
 
 
 def _extract_urls(result) -> list[str]:
@@ -118,13 +173,20 @@ def generate_image(
     aspect="1:1",
     num_outputs=1,
     seed=None,
-    reference_urls=None,
-    character_id=None,
+    reference_id=None,
+    reference_strength=1.0,
+    style_id=None,
+    style_strength=1.0,
 ) -> list[str]:
     """Generate image(s) and return a list of output URLs (blocks until done).
 
-    When `reference_urls` are supplied we switch to the Soul *reference* model
-    and attach them as `input_images`; otherwise we use the standard model.
+    Two independent, composable controls:
+    - `reference_id` → a trained custom-reference (the *subject*), sent as
+      `custom_reference_id`. Uses the Soul *reference* app.
+    - `style_id` → a built-in Soul style preset (the *look*), sent as `style_id`.
+
+    Either, both, or neither may be supplied. (Passing a custom reference into the
+    `style_id` slot fails with "Soul style not found" — they are different things.)
     """
     _ensure_credentials()
 
@@ -136,11 +198,16 @@ def generate_image(
     if seed is not None:
         arguments["seed"] = seed
 
-    if reference_urls:
-        app = settings.HIGGSFIELD_IMAGE_APP_REFERENCE
-        arguments["input_images"] = _reference_payload(reference_urls)
-    else:
-        app = settings.HIGGSFIELD_IMAGE_APP
+    if reference_id:
+        arguments["custom_reference_id"] = reference_id
+        arguments["custom_reference_strength"] = reference_strength
+    if style_id:
+        arguments["style_id"] = style_id
+        arguments["style_strength"] = style_strength
+
+    # The reference app is required to engage a custom reference; otherwise the
+    # standard app handles a plain prompt (with an optional style preset).
+    app = settings.HIGGSFIELD_IMAGE_APP_REFERENCE if reference_id else settings.HIGGSFIELD_IMAGE_APP
 
     result = higgsfield_client.subscribe(app, arguments)
     return _extract_urls(result)

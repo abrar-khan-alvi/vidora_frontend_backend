@@ -1,4 +1,3 @@
-from django.conf import settings
 from rest_framework import serializers
 
 from studio.models import Asset
@@ -36,13 +35,16 @@ class CreateImageJobSerializer(serializers.Serializer):
     aspect = serializers.CharField(required=False, default="1:1")
     num_outputs = serializers.IntegerField(required=False, default=1, min_value=1, max_value=4)
     seed = serializers.IntegerField(required=False, allow_null=True)
-    references = serializers.ListField(
-        child=serializers.UUIDField(),
-        required=False,
-        default=list,
-        max_length=settings.HIGGSFIELD_MAX_REFERENCES,
+    # A trained reference (Character) — the subject (Soul `custom_reference_id`).
+    reference = serializers.UUIDField(required=False, allow_null=True)
+    reference_strength = serializers.FloatField(
+        required=False, default=1.0, min_value=0.0, max_value=1.0
     )
-    character_id = serializers.UUIDField(required=False, allow_null=True)
+    # A built-in Soul style preset — the look (Soul `style_id`).
+    style = serializers.UUIDField(required=False, allow_null=True)
+    style_strength = serializers.FloatField(
+        required=False, default=1.0, min_value=0.0, max_value=1.0
+    )
 
 
 class CreateVideoJobSerializer(serializers.Serializer):
@@ -53,3 +55,10 @@ class CreateVideoJobSerializer(serializers.Serializer):
         choices=["lite", "standard", "turbo"], required=False, default="standard"
     )
     seed = serializers.IntegerField(required=False, allow_null=True)
+
+
+class CreateTTSJobSerializer(serializers.Serializer):
+    """Generate speech (TTS) in a cloned voice (VoiceSync AI)."""
+
+    voice = serializers.UUIDField()  # a ready Voice
+    text = serializers.CharField(max_length=5000)

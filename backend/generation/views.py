@@ -1,9 +1,13 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from providers import higgsfield
 
 from .models import GenerationJob
 from .serializers import (
     CreateImageJobSerializer,
+    CreateTTSJobSerializer,
     CreateVideoJobSerializer,
     GenerationJobSerializer,
 )
@@ -27,8 +31,10 @@ class GenerationListCreateView(generics.ListCreateAPIView):
             "aspect": d.get("aspect", "1:1"),
             "num_outputs": d.get("num_outputs", 1),
             "seed": d.get("seed"),
-            "references": [str(x) for x in d.get("references", [])],
-            "character_id": str(d["character_id"]) if d.get("character_id") else None,
+            "reference": str(d["reference"]) if d.get("reference") else None,
+            "reference_strength": d.get("reference_strength", 1.0),
+            "style": str(d["style"]) if d.get("style") else None,
+            "style_strength": d.get("style_strength", 1.0),
         }
         job = GenerationJob.objects.create(
             user=request.user,
@@ -79,6 +85,59 @@ class VideoGenerationCreateView(generics.CreateAPIView):
             GenerationJobSerializer(job, context={"request": request}).data,
             status=status.HTTP_202_ACCEPTED,
         )
+
+
+class TTSGenerationCreateView(generics.CreateAPIView):
+    """Create a text-to-speech job (VoiceSync AI). Speaks `text` in a cloned voice."""
+
+    serializer_class = CreateTTSJobSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = CreateTTSJobSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        params = {
+            "voice": str(d["voice"]),
+            "text": d["text"],
+            # Mirror image/video: `prompt` powers the job's display text.
+            "prompt": d["text"],
+        }
+        job = GenerationJob.objects.create(
+            user=request.user,
+            kind=GenerationJob.Kind.AUDIO,
+            provider="elevenlabs",
+            status=GenerationJob.Status.QUEUED,
+            input_params=params,
+        )
+
+        from .tasks import run_tts_generation
+        run_tts_generation.delay(str(job.id))
+
+        return Response(
+            GenerationJobSerializer(job, context={"request": request}).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+_STYLE_CACHE: list | None = None
+
+
+class StylePresetListView(APIView):
+    """List Higgsfield's built-in Soul style presets (id, name, description,
+    preview_url). Cached in-process — the catalog rarely changes."""
+
+    def get(self, request, *args, **kwargs):
+        global _STYLE_CACHE
+        if _STYLE_CACHE is None or request.query_params.get("refresh"):
+            try:
+                _STYLE_CACHE = higgsfield.list_soul_styles()
+            except Exception as exc:
+                return Response(
+                    {"detail": f"Could not load styles: {exc}"},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+        return Response(_STYLE_CACHE)
 
 
 class GenerationDetailView(generics.RetrieveDestroyAPIView):

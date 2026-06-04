@@ -153,6 +153,13 @@ HIGGSFIELD_VIDEO_APP_BASE = os.getenv("HIGGSFIELD_VIDEO_APP_BASE", "higgsfield-a
 HIGGSFIELD_VIDEO_QUALITY = os.getenv("HIGGSFIELD_VIDEO_QUALITY", "standard")
 HIGGSFIELD_VIDEO_FLF_SUFFIX = os.getenv("HIGGSFIELD_VIDEO_FLF_SUFFIX", "first-last-frame")
 
+# --- ElevenLabs (VoiceSync AI: voice cloning + TTS) -------------------------
+# Higgsfield's API exposes no voice/TTS, so cloning + speech come from ElevenLabs.
+# Auth header is `xi-api-key`. Cloning requires a paid tier (Starter+).
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+ELEVENLABS_BASE_URL = os.getenv("ELEVENLABS_BASE_URL", "https://api.elevenlabs.io")
+ELEVENLABS_TTS_MODEL = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_multilingual_v2")
+
 # --- I18N / Static ----------------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

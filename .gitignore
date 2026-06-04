@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Exported Claude conversation (contains pasted secrets - do not commit)
+vidora-claude-conversation.md
+vidora-claude-conversation.jsonl
