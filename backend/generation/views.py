@@ -98,7 +98,8 @@ class TTSGenerationCreateView(generics.CreateAPIView):
         d = serializer.validated_data
 
         params = {
-            "voice": str(d["voice"]),
+            "voice": str(d["voice"]) if d.get("voice") else None,
+            "stock_voice_id": d.get("stock_voice_id") or None,
             "text": d["text"],
             # Mirror image/video: `prompt` powers the job's display text.
             "prompt": d["text"],

@@ -34,6 +34,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
 
 
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Edit the parts of the profile a user may change (just the display name)."""
+
+    class Meta:
+        model = User
+        fields = ("display_name",)
+        extra_kwargs = {"display_name": {"required": True, "allow_blank": False, "max_length": 120}}
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Authenticated password change — requires the current password."""
+
+    current_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    new_password = serializers.CharField(
+        write_only=True, validators=[validate_password], style={"input_type": "password"}
+    )
+
+    def validate_current_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Your current password is incorrect.")
+        return value
+
+
 class VerifyEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
     code = serializers.CharField(max_length=6)

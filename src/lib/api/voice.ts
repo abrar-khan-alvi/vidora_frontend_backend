@@ -13,8 +13,26 @@ export interface Voice {
   created_at: string;
 }
 
+/** A built-in ElevenLabs stock voice — ready to use for TTS without cloning. */
+export interface StockVoice {
+  id: string;
+  name: string;
+  description: string;
+  preview_url: string;
+  gender: string;
+  age: string;
+}
+
+/** A resolved voice choice for TTS — either a user's clone or a stock voice. */
+export interface VoiceSelection {
+  kind: 'cloned' | 'stock';
+  id: string;
+  name: string;
+}
+
 export const voiceApi = {
   list: () => apiFetch<Voice[]>('/studio/voices/', { auth: true }),
+  listStock: () => apiFetch<StockVoice[]>('/studio/voices/stock/', { auth: true }),
   rename: (id: string, name: string) =>
     apiFetch<Voice>(`/studio/voices/${id}/`, { method: 'PATCH', auth: true, body: { name } }),
   remove: (id: string) =>

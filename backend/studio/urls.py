@@ -9,5 +9,6 @@ urlpatterns = [
     path("characters/", views.CharacterListCreateView.as_view(), name="character-list"),
     path("characters/<uuid:pk>/", views.CharacterDetailView.as_view(), name="character-detail"),
     path("voices/", views.VoiceListCreateView.as_view(), name="voice-list"),
+    path("voices/stock/", views.StockVoiceListView.as_view(), name="voice-stock"),
     path("voices/<uuid:pk>/", views.VoiceDetailView.as_view(), name="voice-detail"),
 ]

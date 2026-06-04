@@ -23,6 +23,16 @@ export const authApi = {
 
   me: () => apiFetch<User>('/auth/me/', { auth: true }),
 
+  updateProfile: (displayName: string) =>
+    apiFetch<User>('/auth/me/', { method: 'PATCH', auth: true, body: { display_name: displayName } }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ detail: string }>('/auth/me/password/', {
+      method: 'POST',
+      auth: true,
+      body: { current_password: currentPassword, new_password: newPassword },
+    }),
+
   forgotPassword: (email: string) =>
     apiFetch<{ detail: string }>('/auth/password/forgot/', {
       method: 'POST',

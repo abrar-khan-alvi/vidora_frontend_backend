@@ -58,7 +58,13 @@ class CreateVideoJobSerializer(serializers.Serializer):
 
 
 class CreateTTSJobSerializer(serializers.Serializer):
-    """Generate speech (TTS) in a cloned voice (VoiceSync AI)."""
+    """Generate speech (TTS) in either a cloned voice or a built-in stock voice."""
 
-    voice = serializers.UUIDField()  # a ready Voice
+    voice = serializers.UUIDField(required=False, allow_null=True)  # a ready cloned Voice
+    stock_voice_id = serializers.CharField(required=False, allow_blank=True)  # ElevenLabs premade voice id
     text = serializers.CharField(max_length=5000)
+
+    def validate(self, data):
+        if not data.get("voice") and not data.get("stock_voice_id"):
+            raise serializers.ValidationError("Select a voice (cloned or stock).")
+        return data

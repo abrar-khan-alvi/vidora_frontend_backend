@@ -4,6 +4,9 @@ import os
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from providers import elevenlabs
 
 from .models import Asset, Character, Voice
 from .serializers import (
@@ -101,6 +104,18 @@ class CharacterListCreateView(generics.ListCreateAPIView):
     def get_serializer_class(self):
         return CharacterCreateSerializer if self.request.method == "POST" else CharacterSerializer
 
+    def list(self, request, *args, **kwargs):
+        # Self-heal: re-check any reference stuck "pending" (e.g. if a worker
+        # restart dropped its background poll chain) before returning the list.
+        from .tasks import sync_reference_status
+
+        pending = Character.objects.filter(
+            user=request.user, status=Character.Status.PENDING
+        ).exclude(provider_character_id="")
+        for char in pending:
+            sync_reference_status(char)
+        return super().list(request, *args, **kwargs)
+
     def create(self, request, *args, **kwargs):
         serializer = CharacterCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -172,6 +187,26 @@ class VoiceListCreateView(generics.ListCreateAPIView):
             VoiceSerializer(voice, context=self.get_serializer_context()).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+_STOCK_VOICE_CACHE: list | None = None
+
+
+class StockVoiceListView(APIView):
+    """List ElevenLabs' built-in ("premade") voices for TTS without cloning.
+    Cached in-process — the catalog rarely changes (`?refresh=1` to force)."""
+
+    def get(self, request, *args, **kwargs):
+        global _STOCK_VOICE_CACHE
+        if _STOCK_VOICE_CACHE is None or request.query_params.get("refresh"):
+            try:
+                _STOCK_VOICE_CACHE = elevenlabs.list_stock_voices()
+            except Exception as exc:
+                return Response(
+                    {"detail": f"Could not load voices: {exc}"},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+        return Response(_STOCK_VOICE_CACHE)
 
 
 class VoiceDetailView(generics.RetrieveUpdateDestroyAPIView):

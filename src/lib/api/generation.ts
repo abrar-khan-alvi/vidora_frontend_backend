@@ -54,8 +54,10 @@ export interface CreateVideoParams {
 }
 
 export interface CreateTTSParams {
-  /** A ready Voice id to speak in. */
-  voice: string;
+  /** A ready cloned Voice id to speak in. */
+  voice?: string | null;
+  /** Or a built-in ElevenLabs stock voice id. */
+  stock_voice_id?: string | null;
   text: string;
 }
 
@@ -68,6 +70,7 @@ export const generationApi = {
     apiFetch<GenerationJob>('/generations/tts/', { method: 'POST', auth: true, body: params }),
   get: (id: string) => apiFetch<GenerationJob>(`/generations/${id}/`, { auth: true }),
   list: () => apiFetch<GenerationJob[]>('/generations/?kind=image', { auth: true }),
+  listAll: () => apiFetch<GenerationJob[]>('/generations/', { auth: true }),
   listVideos: () => apiFetch<GenerationJob[]>('/generations/?kind=video', { auth: true }),
   listAudio: () => apiFetch<GenerationJob[]>('/generations/?kind=audio', { auth: true }),
   listStyles: () => apiFetch<StylePreset[]>('/generations/styles/', { auth: true }),

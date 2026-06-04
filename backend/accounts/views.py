@@ -8,8 +8,10 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .emails import send_code_email
 from .models import OneTimeCode
 from .serializers import (
+    ChangePasswordSerializer,
     EmailTokenObtainPairSerializer,
     ForgotPasswordSerializer,
+    ProfileUpdateSerializer,
     RegisterSerializer,
     ResetPasswordSerializer,
     UserSerializer,
@@ -85,11 +87,32 @@ class LoginView(TokenObtainPairView):
     permission_classes = [permissions.AllowAny]
 
 
-class MeView(generics.RetrieveAPIView):
-    serializer_class = UserSerializer
+class MeView(generics.RetrieveUpdateAPIView):
+    """GET the current user, or PATCH editable profile fields (display name)."""
 
     def get_object(self):
         return self.request.user
+
+    def get_serializer_class(self):
+        return ProfileUpdateSerializer if self.request.method in ("PATCH", "PUT") else UserSerializer
+
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        super().update(request, *args, **kwargs)
+        # Always return the full user representation.
+        return Response(UserSerializer(self.get_object()).data)
+
+
+class ChangePasswordView(APIView):
+    """Authenticated password change (verifies the current password)."""
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = request.user
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"detail": "Password updated."})
 
 
 class ForgotPasswordView(APIView):
