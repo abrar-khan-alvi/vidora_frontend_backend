@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import {
   Sparkles, Plus, ArrowUp, Copy, Check, Square, Trash2,
-  ImagePlus, PlaySquare, Mic,
+  ImagePlus, PlaySquare, Mic, MessageSquare,
 } from 'lucide-react';
 import {
   promptonApi,
@@ -126,7 +126,7 @@ export const PromptonContent = () => {
     const ta = taRef.current;
     if (ta) {
       ta.style.height = 'auto';
-      ta.style.height = `${Math.min(ta.scrollHeight, 180)}px`;
+      ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
     }
   };
 
@@ -243,92 +243,142 @@ export const PromptonContent = () => {
 
   const showWelcome = messages.length === 0 && !streamingText && !streaming;
 
+  // Single composer reused in both the welcome hero and the active thread.
+  const composerEl = (
+    <div className="w-full">
+      <div className="bg-[#131316] border border-white/[0.08] rounded-2xl p-2 flex items-end gap-2 focus-within:border-[#9758FF]/50 focus-within:shadow-[0_0_0_3px_rgba(151,88,255,0.1)] transition-all">
+        <textarea
+          ref={taRef}
+          value={input}
+          onChange={handleInput}
+          onKeyDown={onKeyDown}
+          rows={1}
+          placeholder="Describe what you want to create…"
+          className="flex-1 bg-transparent resize-none px-3 py-2.5 text-[14.5px] text-white placeholder-[#5A5A60] focus:outline-none max-h-52"
+        />
+        {streaming ? (
+          <button
+            onClick={stop}
+            className="shrink-0 w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white flex items-center justify-center transition-colors"
+            title="Stop"
+          >
+            <Square size={15} fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            onClick={() => send(input)}
+            disabled={!input.trim()}
+            className="shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-[#9758FF] to-[#7C3AED] hover:opacity-90 disabled:opacity-40 text-white flex items-center justify-center transition-all"
+            title="Send"
+          >
+            <ArrowUp size={18} />
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-[#5A5A60] mt-2 text-center">
+        Prompton can make mistakes. <span className="text-[#7A7A80]">Enter</span> to send · <span className="text-[#7A7A80]">Shift+Enter</span> for a new line
+      </p>
+    </div>
+  );
+
   return (
-    <div className="flex-1 w-full max-w-[1040px] flex gap-6 h-[calc(100vh-130px)]">
-      {/* Conversation rail */}
-      <aside className="hidden md:flex w-60 shrink-0 flex-col gap-3">
+    <div className="flex-1 w-full flex gap-4 h-[calc(100vh-128px)]">
+      {/* Conversation sidebar */}
+      <aside className="hidden lg:flex w-[208px] shrink-0 flex-col gap-3">
         <button
           onClick={newChat}
-          className="flex items-center justify-center gap-2 bg-[#9758FF] hover:bg-[#854EE6] text-white py-2.5 rounded-xl font-semibold text-[14px] transition-colors"
+          className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#9758FF] to-[#7C3AED] hover:opacity-90 text-white py-2.5 rounded-xl font-semibold text-[14px] transition-all shadow-[0_8px_20px_-6px_rgba(151,88,255,0.55)]"
         >
           <Plus size={18} /> New chat
         </button>
-        <div className="flex-1 overflow-y-auto space-y-0.5 pr-1">
-          {conversations.length === 0 && (
-            <p className="text-[12px] text-[#5A5A60] px-3 py-4 text-center">No conversations yet</p>
-          )}
-          {conversations.map((c) => (
-            <div
-              key={c.id}
-              className={`group flex items-center rounded-lg transition-colors ${
-                c.id === activeId ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
-              }`}
-            >
-              <button
-                onClick={() => selectConversation(c.id)}
-                className={`flex-1 text-left px-3 py-2.5 text-[13px] truncate ${
-                  c.id === activeId ? 'text-white' : 'text-[#A1A1A5]'
+        <div className="flex-1 overflow-y-auto space-y-0.5 pr-0.5 bg-[#0D0D10]/50 border border-white/[0.05] rounded-2xl p-2">
+          {conversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center px-3">
+              <MessageSquare size={20} className="text-[#3A3A40]" />
+              <p className="text-[12px] text-[#5A5A60]">No conversations yet</p>
+            </div>
+          ) : (
+            conversations.map((c) => (
+              <div
+                key={c.id}
+                className={`group flex items-center rounded-lg transition-colors ${
+                  c.id === activeId ? 'bg-[#9758FF]/15' : 'hover:bg-white/[0.04]'
                 }`}
               >
-                {c.title || 'New conversation'}
-              </button>
-              <button
-                onClick={() => deleteConversation(c.id)}
-                className="px-2 text-[#5A5A60] hover:text-[#F87171] opacity-0 group-hover:opacity-100 transition-opacity"
-                title="Delete"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
+                <button
+                  onClick={() => selectConversation(c.id)}
+                  className={`flex-1 flex items-center gap-2 text-left px-3 py-2.5 text-[13px] truncate ${
+                    c.id === activeId ? 'text-white' : 'text-[#A1A1A5]'
+                  }`}
+                >
+                  <MessageSquare size={14} className="shrink-0 opacity-60" />
+                  <span className="truncate">{c.title || 'New conversation'}</span>
+                </button>
+                <button
+                  onClick={() => deleteConversation(c.id)}
+                  className="px-2 text-[#5A5A60] hover:text-[#F87171] opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Delete"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </aside>
 
       {/* Thread */}
       <div className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#9758FF] to-[#6A39C4] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#9758FF] to-[#6A39C4] flex items-center justify-center shadow-[0_4px_14px_rgba(151,88,255,0.35)]">
             <Sparkles size={18} className="text-white" />
           </div>
           <div className="min-w-0">
             <h1 className="text-[20px] font-bold text-white tracking-tight leading-tight">Prompton</h1>
-            <p className="text-[#7A7A80] text-[12.5px]">Creative director for prompts & scripts</p>
+            <p className="text-[#7A7A80] text-[12.5px]">Creative director for prompts &amp; scripts</p>
           </div>
-          <button onClick={newChat} className="md:hidden ml-auto flex items-center gap-1.5 text-[13px] text-[#9758FF] font-semibold">
+          <button onClick={newChat} className="lg:hidden ml-auto flex items-center gap-1.5 text-[13px] text-[#9758FF] font-semibold">
             <Plus size={16} /> New
           </button>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-5 pr-1">
-          {showWelcome ? (
-            <div className="h-full flex flex-col items-center justify-center text-center gap-6 px-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9758FF] to-[#6A39C4] flex items-center justify-center shadow-[0_10px_30px_rgba(151,88,255,0.35)]">
+        {showWelcome ? (
+          // Welcome: hero + composer + suggestions grouped together (no empty void)
+          <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[760px] mx-auto px-2 gap-7">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#9758FF] to-[#6A39C4] flex items-center justify-center shadow-[0_10px_30px_rgba(151,88,255,0.4)]">
                 <Sparkles size={26} className="text-white" />
               </div>
               <div>
-                <h2 className="text-[22px] font-bold text-white mb-1.5">What are we creating today?</h2>
-                <p className="text-[#A1A1A5] text-[14.5px] max-w-[420px]">
+                <h2 className="text-[24px] font-bold text-white mb-1.5">What are we creating today?</h2>
+                <p className="text-[#A1A1A5] text-[14.5px] max-w-[460px]">
                   Tell Prompton your idea — it writes production-ready image prompts, video prompts, and voiceover scripts.
                 </p>
               </div>
-              <div className="grid sm:grid-cols-3 gap-3 w-full max-w-[640px]">
-                {SUGGESTIONS.map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => send(s.text)}
-                    className="text-left bg-[#131316] border border-white/[0.06] rounded-2xl p-4 hover:border-[#9758FF]/40 hover:bg-[#16161A] transition-all"
-                  >
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${s.accent}1A`, color: s.accent }}>
-                      <s.icon size={18} />
-                    </div>
-                    <div className="text-white font-semibold text-[13.5px] mb-1">{s.label}</div>
-                    <div className="text-[#7A7A80] text-[12px] leading-snug line-clamp-2">{s.text}</div>
-                  </button>
-                ))}
-              </div>
             </div>
-          ) : (
-            <>
+
+            {composerEl}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => send(s.text)}
+                  className="text-left bg-[#131316] border border-white/[0.06] rounded-2xl p-4 hover:border-[#9758FF]/40 hover:bg-[#16161A] hover:-translate-y-0.5 transition-all"
+                >
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ backgroundColor: `${s.accent}1A`, color: s.accent }}>
+                    <s.icon size={18} />
+                  </div>
+                  <div className="text-white font-semibold text-[13.5px] mb-1">{s.label}</div>
+                  <div className="text-[#7A7A80] text-[12px] leading-snug line-clamp-2">{s.text}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          // Active chat: scrolling thread + pinned composer
+          <>
+            <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-5 pr-1 w-full max-w-[820px] mx-auto">
               {messages.map((m) => (
                 <MessageRow key={m.id} message={m} />
               ))}
@@ -351,47 +401,15 @@ export const PromptonContent = () => {
                   </div>
                 </div>
               )}
-            </>
-          )}
-        </div>
+            </div>
 
-        {error && <div className="mt-3 text-[13px] text-[#F87171]">{error}</div>}
+            {error && <div className="mt-2 w-full max-w-[820px] mx-auto text-[13px] text-[#F87171]">{error}</div>}
 
-        {/* Composer */}
-        <div className="mt-4">
-          <div className="bg-[#131316] border border-white/[0.06] rounded-2xl p-2 flex items-end gap-2 focus-within:border-[#9758FF]/40 transition-colors">
-            <textarea
-              ref={taRef}
-              value={input}
-              onChange={handleInput}
-              onKeyDown={onKeyDown}
-              rows={1}
-              placeholder="Describe what you want to create…"
-              className="flex-1 bg-transparent resize-none px-3 py-2.5 text-[14.5px] text-white placeholder-[#5A5A60] focus:outline-none max-h-44"
-            />
-            {streaming ? (
-              <button
-                onClick={stop}
-                className="shrink-0 w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white flex items-center justify-center transition-colors"
-                title="Stop"
-              >
-                <Square size={15} fill="currentColor" />
-              </button>
-            ) : (
-              <button
-                onClick={() => send(input)}
-                disabled={!input.trim()}
-                className="shrink-0 w-10 h-10 rounded-xl bg-[#9758FF] hover:bg-[#854EE6] disabled:opacity-40 disabled:hover:bg-[#9758FF] text-white flex items-center justify-center transition-colors"
-                title="Send"
-              >
-                <ArrowUp size={18} />
-              </button>
-            )}
-          </div>
-          <p className="text-[11px] text-[#5A5A60] mt-2 text-center">
-            Prompton can make mistakes. <span className="text-[#7A7A80]">Enter</span> to send · <span className="text-[#7A7A80]">Shift+Enter</span> for a new line
-          </p>
-        </div>
+            <div className="mt-3 w-full max-w-[820px] mx-auto">
+              {composerEl}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

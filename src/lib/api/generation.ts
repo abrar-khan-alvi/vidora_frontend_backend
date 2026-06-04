@@ -27,8 +27,20 @@ export interface CreateImageParams {
   aspect?: string;
   num_outputs?: number;
   seed?: number | null;
-  /** Asset IDs of uploaded reference images (Soul reference mode). */
-  references?: string[];
+  /** A trained reference (Character) id — the subject (Soul custom_reference_id). */
+  reference?: string | null;
+  reference_strength?: number;
+  /** A built-in Soul style preset id — the look (Soul style_id). */
+  style?: string | null;
+  style_strength?: number;
+}
+
+/** A built-in Higgsfield Soul style preset (the "look"). */
+export interface StylePreset {
+  id: string;
+  name: string;
+  description: string;
+  preview_url: string;
 }
 
 export interface CreateVideoParams {
@@ -41,14 +53,24 @@ export interface CreateVideoParams {
   seed?: number | null;
 }
 
+export interface CreateTTSParams {
+  /** A ready Voice id to speak in. */
+  voice: string;
+  text: string;
+}
+
 export const generationApi = {
   createImage: (params: CreateImageParams) =>
     apiFetch<GenerationJob>('/generations/', { method: 'POST', auth: true, body: params }),
   createVideo: (params: CreateVideoParams) =>
     apiFetch<GenerationJob>('/generations/video/', { method: 'POST', auth: true, body: params }),
+  createTTS: (params: CreateTTSParams) =>
+    apiFetch<GenerationJob>('/generations/tts/', { method: 'POST', auth: true, body: params }),
   get: (id: string) => apiFetch<GenerationJob>(`/generations/${id}/`, { auth: true }),
   list: () => apiFetch<GenerationJob[]>('/generations/?kind=image', { auth: true }),
   listVideos: () => apiFetch<GenerationJob[]>('/generations/?kind=video', { auth: true }),
+  listAudio: () => apiFetch<GenerationJob[]>('/generations/?kind=audio', { auth: true }),
+  listStyles: () => apiFetch<StylePreset[]>('/generations/styles/', { auth: true }),
 };
 
 const TERMINAL: JobStatus[] = ['succeeded', 'failed', 'canceled'];

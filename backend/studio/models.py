@@ -78,9 +78,42 @@ class Character(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="characters"
     )
     name = models.CharField(max_length=120)
+    # Higgsfield custom-reference (SoulId) UUID, used as `style_id` at generation.
     provider_character_id = models.CharField(max_length=200, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     training_asset_ids = models.JSONField(default=list)
+    thumbnail_url = models.URLField(max_length=500, blank=True)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.status})"
+
+
+class Voice(models.Model):
+    """A cloned voice (VoiceSync AI). Mirrors Character: created from an uploaded
+    audio sample, cloned at the provider (ElevenLabs), then reusable for TTS."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        READY = "ready", "Ready"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="voices"
+    )
+    name = models.CharField(max_length=120)
+    provider = models.CharField(max_length=32, default="elevenlabs")
+    # Provider voice id (ElevenLabs voice_id), used when generating speech.
+    provider_voice_id = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    # The uploaded sample clip the voice was cloned from (for playback / re-clone).
+    sample = models.FileField(upload_to="voices/%Y/%m/", null=True, blank=True)
+    mime = models.CharField(max_length=100, blank=True)
     error = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

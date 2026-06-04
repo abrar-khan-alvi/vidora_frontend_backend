@@ -5,12 +5,16 @@ from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from .models import Asset, Character
+from .models import Asset, Character, Voice
 from .serializers import (
     AssetRenameSerializer,
     AssetSerializer,
     AssetUploadSerializer,
+    CharacterCreateSerializer,
     CharacterSerializer,
+    VoiceCreateSerializer,
+    VoiceRenameSerializer,
+    VoiceSerializer,
 )
 
 
@@ -88,8 +92,108 @@ class AssetDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(AssetSerializer(asset, context=self.get_serializer_context()).data)
 
 
-class CharacterListView(generics.ListAPIView):
+class CharacterListCreateView(generics.ListCreateAPIView):
+    """List trained references, or create one from uploaded library images."""
+
+    def get_queryset(self):
+        return Character.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        return CharacterCreateSerializer if self.request.method == "POST" else CharacterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = CharacterCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        # Only accept the user's own uploaded images.
+        ids = [str(x) for x in d["asset_ids"]]
+        owned = set(
+            str(a.id)
+            for a in Asset.objects.filter(
+                id__in=ids, user=request.user, source=Asset.Source.UPLOAD
+            )
+        )
+        valid = [i for i in ids if i in owned]
+        if not valid:
+            return Response({"asset_ids": ["No valid images."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        character = Character.objects.create(
+            user=request.user,
+            name=d["name"],
+            status=Character.Status.PENDING,
+            training_asset_ids=valid,
+        )
+
+        from .tasks import create_and_poll_reference
+        create_and_poll_reference.delay(str(character.id))
+
+        return Response(
+            CharacterSerializer(character).data, status=status.HTTP_201_CREATED
+        )
+
+
+class CharacterDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = CharacterSerializer
 
     def get_queryset(self):
         return Character.objects.filter(user=self.request.user)
+
+
+class VoiceListCreateView(generics.ListCreateAPIView):
+    """List the user's cloned voices, or clone a new one from an audio sample."""
+
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        return Voice.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        return VoiceCreateSerializer if self.request.method == "POST" else VoiceSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = VoiceCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        sample = d["sample"]
+
+        voice = Voice.objects.create(
+            user=request.user,
+            name=d["name"],
+            status=Voice.Status.PENDING,
+            mime=getattr(sample, "content_type", "") or "",
+        )
+        voice.sample.save(getattr(sample, "name", "sample"), sample, save=True)
+
+        from .tasks import run_voice_clone
+        run_voice_clone.delay(str(voice.id))
+
+        return Response(
+            VoiceSerializer(voice, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class VoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Rename (PATCH) or delete (DELETE, also removes the voice at the provider)."""
+
+    def get_queryset(self):
+        return Voice.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        return VoiceRenameSerializer if self.request.method in ("PATCH", "PUT") else VoiceSerializer
+
+    def update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        super().update(request, *args, **kwargs)
+        voice = self.get_object()
+        return Response(VoiceSerializer(voice, context=self.get_serializer_context()).data)
+
+    def perform_destroy(self, instance):
+        if instance.provider_voice_id:
+            try:
+                from providers import elevenlabs
+                elevenlabs.delete_voice(instance.provider_voice_id)
+            except Exception:
+                pass  # best-effort; still remove locally
+        instance.delete()
