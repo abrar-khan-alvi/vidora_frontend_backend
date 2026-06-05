@@ -9,6 +9,7 @@ urlpatterns = [
     path("api/prompton/", include("prompton.urls")),
     path("api/studio/", include("studio.urls")),
     path("api/generations/", include("generation.urls")),
+    path("api/billing/", include("billing.urls")),
 ]
 
 if settings.DEBUG:

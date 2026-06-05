@@ -9,3 +9,5 @@ celery[redis]>=5.4
 httpx>=0.27,<0.29
 Pillow>=11.0
 higgsfield-client
+stripe>=10.0
+
