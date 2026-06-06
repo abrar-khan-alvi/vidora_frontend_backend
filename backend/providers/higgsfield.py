@@ -138,30 +138,79 @@ def _extract_video_urls(result) -> list[str]:
 
 def generate_video(
     *,
-    image_url,
+    model_type="dop",
+    image_url=None,
     end_image_url=None,
     prompt="",
-    quality=None,
     seed=None,
+    **kwargs,
 ) -> list[str]:
     """Animate a source image into a video (blocks until done).
 
-    DoP slug is `<base>/<quality>`, or `<base>/<quality>/first-last-frame` when an
-    end frame is given (start→end interpolation). Returns output video URL(s).
+    Supports DoP (Director of Photography), Seedance 2.0, and Kling models.
     """
     _ensure_credentials()
 
-    quality = quality or settings.HIGGSFIELD_VIDEO_QUALITY
-    mode = f"{quality}/{settings.HIGGSFIELD_VIDEO_FLF_SUFFIX}" if end_image_url else quality
-    app = f"{settings.HIGGSFIELD_VIDEO_APP_BASE}/{mode}"
+    app = ""
+    arguments = {}
 
-    arguments = {"image_url": image_url}
     if prompt:
         arguments["prompt"] = prompt
-    if end_image_url:
-        arguments["end_image_url"] = end_image_url
     if seed is not None:
         arguments["seed"] = seed
+
+    if model_type == "dop":
+        quality = kwargs.get("quality") or settings.HIGGSFIELD_VIDEO_QUALITY
+        mode = f"{quality}/{settings.HIGGSFIELD_VIDEO_FLF_SUFFIX}" if end_image_url else quality
+        app = f"{settings.HIGGSFIELD_VIDEO_APP_BASE}/{mode}"
+        
+        arguments["image_url"] = image_url
+        if end_image_url:
+            arguments["end_image_url"] = end_image_url
+        if "motion_id" in kwargs and kwargs["motion_id"]:
+            arguments["motion_id"] = kwargs["motion_id"]
+        if "motion_strength" in kwargs:
+            arguments["motion_strength"] = kwargs["motion_strength"]
+        if "enhance_prompt" in kwargs:
+            arguments["enhance_prompt"] = kwargs["enhance_prompt"]
+        if "check_nsfw" in kwargs:
+            arguments["check_nsfw"] = kwargs["check_nsfw"]
+
+    elif model_type == "seedance":
+        # Automatically select text-to-video or image-to-video app
+        if image_url:
+            app = "bytedance/seedance/v2/image-to-video"
+            arguments["input_image"] = image_url
+        else:
+            app = "bytedance/seedance/v2/text-to-video"
+
+        if "resolution" in kwargs:
+            arguments["resolution"] = kwargs["resolution"]
+        if "aspect_ratio" in kwargs:
+            arguments["aspect_ratio"] = kwargs["aspect_ratio"]
+        if "duration" in kwargs:
+            arguments["duration"] = kwargs["duration"]
+        if "enhance_prompt" in kwargs:
+            arguments["enhance_prompt"] = kwargs["enhance_prompt"]
+
+    elif model_type == "kling":
+        app = kwargs.get("model") or "kling-video/v2.6/pro/image-to-video"
+        
+        if image_url:
+            arguments["start_image_url"] = image_url
+        if end_image_url:
+            arguments["end_image_url"] = end_image_url
+        if "duration" in kwargs:
+            arguments["duration"] = kwargs["duration"]
+        if "aspect_ratio" in kwargs:
+            arguments["aspect_ratio"] = kwargs["aspect_ratio"]
+        if "negative_prompt" in kwargs and kwargs["negative_prompt"]:
+            arguments["negative_prompt"] = kwargs["negative_prompt"]
+        if "enhance_prompt" in kwargs:
+            arguments["enhance_prompt"] = kwargs["enhance_prompt"]
+
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}")
 
     result = higgsfield_client.subscribe(app, arguments)
     return _extract_video_urls(result)

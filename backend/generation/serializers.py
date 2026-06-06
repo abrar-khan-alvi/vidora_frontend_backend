@@ -49,12 +49,22 @@ class CreateImageJobSerializer(serializers.Serializer):
 
 class CreateVideoJobSerializer(serializers.Serializer):
     prompt = serializers.CharField(required=False, allow_blank=True, default="")
-    source = serializers.UUIDField()  # required start frame
+    source = serializers.UUIDField(required=False, allow_null=True)  # optional start frame
     end_frame = serializers.UUIDField(required=False, allow_null=True)
-    quality = serializers.ChoiceField(
-        choices=["lite", "standard", "turbo"], required=False, default="standard"
-    )
+    quality = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     seed = serializers.IntegerField(required=False, allow_null=True)
+    model_type = serializers.ChoiceField(
+        choices=["dop", "seedance", "kling"], required=False, default="dop"
+    )
+    motion_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    motion_strength = serializers.FloatField(required=False, allow_null=True)
+    resolution = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    aspect_ratio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    duration = serializers.IntegerField(required=False, allow_null=True)
+    model = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    negative_prompt = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    enhance_prompt = serializers.BooleanField(required=False, default=False)
+    check_nsfw = serializers.BooleanField(required=False, default=True)
 
 
 class CreateTTSJobSerializer(serializers.Serializer):

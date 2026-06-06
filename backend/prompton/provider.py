@@ -48,7 +48,6 @@ def stream_reply(history):
                 "cache_control": {"type": "ephemeral"},
             }
         ],
-        thinking={"type": "adaptive"},
         messages=history,
     ) as stream:
         for text in stream.text_stream:

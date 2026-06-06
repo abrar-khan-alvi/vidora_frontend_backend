@@ -151,14 +151,20 @@ def run_video_generation(job_id: str):
         job.status = GenerationJob.Status.PROCESSING
         job.save(update_fields=["status"])
         image_url = _frame_url(job, "source")
-        if not image_url:
-            raise RuntimeError("Source image is required for video generation.")
+        model_type = params.get("model_type", "dop")
+        if model_type == "dop" and not image_url:
+            raise RuntimeError("Source image is required for DoP video generation.")
+            
+        exclude_keys = {"source", "end_frame", "prompt", "seed"}
+        extra_args = {k: v for k, v in params.items() if k not in exclude_keys}
+
         urls = higgsfield.generate_video(
+            model_type=model_type,
             image_url=image_url,
             end_image_url=_frame_url(job, "end_frame"),
             prompt=params.get("prompt", ""),
-            quality=params.get("quality"),
             seed=params.get("seed"),
+            **extra_args,
         )
     except Exception as exc:  # provider/network failure
         job.status = GenerationJob.Status.FAILED

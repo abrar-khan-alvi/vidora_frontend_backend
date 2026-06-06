@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Settings,
   LogOut,
-  Zap
+  Zap,
+  Smile,
 } from 'lucide-react';
 import { Logo } from './ui';
 import { useAuth } from '../auth/AuthContext';
@@ -26,6 +27,7 @@ const navItems = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
   { id: 'prompton', icon: Sparkles, label: 'Prompton' },
   { id: 'image-generation', icon: ImagePlus, label: 'Image Generation' },
+  { id: 'references', icon: Smile, label: 'Custom References' },
   { id: 'video-generation', icon: PlaySquare, label: 'Video Generation' },
   { id: 'voicesync', icon: Mic, label: 'VoiceSync AI' },
   { id: 'subscriptions', icon: RefreshCw, label: 'Subscriptions' },
@@ -245,8 +247,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
         {/* Dynamic Content Wrapper. Prompton (a chat) fills the width and
             left-aligns; other pages stay centered at a comfortable max width. */}
-        <main className={`px-5 sm:px-10 pb-10 flex-1 w-full flex overflow-y-auto overflow-x-hidden ${activeTab === 'prompton' ? 'justify-start' : 'justify-center'}`}>
-          <div className={`w-full flex justify-start min-w-0 ${activeTab === 'prompton' ? 'max-w-[1320px]' : 'max-w-[1100px]'}`}>
+        <main className="px-5 sm:px-10 pb-10 flex-1 w-full overflow-y-auto overflow-x-hidden">
+          <div className={`w-full min-w-0 ${activeTab === 'prompton' ? 'max-w-[1320px] mx-auto' : 'max-w-[1100px] mx-auto'}`}>
             {children}
           </div>
         </main>

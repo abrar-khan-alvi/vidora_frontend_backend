@@ -20,6 +20,7 @@ export interface GenerationJob {
   credits_cost: number;
   created_at: string;
   completed_at: string | null;
+  input_params?: any;
 }
 
 export interface CreateImageParams {
@@ -45,12 +46,20 @@ export interface StylePreset {
 
 export interface CreateVideoParams {
   prompt?: string;
-  /** Asset ID of the required start/source frame. */
-  source: string;
-  /** Asset ID of the optional end frame (switches to first-last-frame mode). */
+  source?: string | null;
   end_frame?: string | null;
-  quality?: 'lite' | 'standard' | 'turbo';
+  quality?: string | null;
   seed?: number | null;
+  model_type?: 'dop' | 'seedance' | 'kling';
+  motion_id?: string | null;
+  motion_strength?: number | null;
+  resolution?: string | null;
+  aspect_ratio?: string | null;
+  duration?: number | null;
+  model?: string | null;
+  negative_prompt?: string | null;
+  enhance_prompt?: boolean;
+  check_nsfw?: boolean;
 }
 
 export interface CreateTTSParams {

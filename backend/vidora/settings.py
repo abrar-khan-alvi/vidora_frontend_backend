@@ -151,7 +151,7 @@ HIGGSFIELD_MAX_REFERENCES = int(os.getenv("HIGGSFIELD_MAX_REFERENCES", "4"))
 # frame, or <base>/<quality>/first-last-frame when an end frame is supplied.
 # quality in {lite, standard, turbo}. Kling / Minimax Hailuo are also enabled alternatives.
 HIGGSFIELD_VIDEO_APP_BASE = os.getenv("HIGGSFIELD_VIDEO_APP_BASE", "higgsfield-ai/dop")
-HIGGSFIELD_VIDEO_QUALITY = os.getenv("HIGGSFIELD_VIDEO_QUALITY", "standard")
+HIGGSFIELD_VIDEO_QUALITY = os.getenv("HIGGSFIELD_VIDEO_QUALITY", "turbo")
 HIGGSFIELD_VIDEO_FLF_SUFFIX = os.getenv("HIGGSFIELD_VIDEO_FLF_SUFFIX", "first-last-frame")
 
 # --- ElevenLabs (VoiceSync AI: voice cloning + TTS) -------------------------

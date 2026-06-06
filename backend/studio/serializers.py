@@ -44,10 +44,26 @@ class AssetRenameSerializer(serializers.ModelSerializer):
 
 
 class CharacterSerializer(serializers.ModelSerializer):
+    thumbnail_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Character
         fields = ("id", "name", "status", "thumbnail_url", "error", "created_at")
         read_only_fields = fields
+
+    def get_thumbnail_url(self, obj):
+        if obj.thumbnail_url:
+            return obj.thumbnail_url
+        if obj.training_asset_ids and len(obj.training_asset_ids) > 0:
+            try:
+                first_asset_id = obj.training_asset_ids[0]
+                asset = Asset.objects.filter(id=first_asset_id).first()
+                if asset and asset.file:
+                    request = self.context.get("request")
+                    return request.build_absolute_uri(asset.file.url) if request else asset.file.url
+            except Exception:
+                pass
+        return ""
 
 
 class CharacterCreateSerializer(serializers.Serializer):

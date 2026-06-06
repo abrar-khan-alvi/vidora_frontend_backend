@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   Volume2, Plus, ChevronLeft, Mic, Sparkles, Download, RefreshCw, AlertCircle,
-  Loader2, Check, Trash2, Music, Clock,
+  Loader2, Check, Trash2, Music, Clock, Play, Pause, Copy, FileText, Calendar
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { generationApi, pollJob, type GenerationJob } from '../lib/api/generation';
 import { voiceApi, type Voice, type VoiceSelection } from '../lib/api/voice';
 import { CloneVoiceModal } from '../components/CloneVoiceModal';
 import { VoicePickerModal } from '../components/VoicePickerModal';
+import { useToast } from '../components/Toast';
 
 const MAX_CHARS = 5000;
 
@@ -32,7 +33,165 @@ async function downloadAudio(url: string, name: string) {
   }
 }
 
+const AudioPlayer = ({ url }: { url: string }) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const animRef = useRef<number | null>(null);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  const updateProgress = () => {
+    if (audioRef.current && !audioRef.current.paused && !isSeeking) {
+      setCurrentTime(audioRef.current.currentTime);
+      animRef.current = requestAnimationFrame(updateProgress);
+    }
+  };
+
+  useEffect(() => {
+    if (isPlaying && !isSeeking) {
+      animRef.current = requestAnimationFrame(updateProgress);
+    }
+    return () => {
+      if (animRef.current) {
+        cancelAnimationFrame(animRef.current);
+      }
+    };
+  }, [isPlaying, isSeeking]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onTimeUpdate = () => {
+      if (!isSeeking) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+    const onLoadedMetadata = () => setDuration(audio.duration || 0);
+    const onEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+
+    if (audio.readyState >= 1) {
+      setDuration(audio.duration || 0);
+    }
+
+    return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      if (animRef.current) {
+        cancelAnimationFrame(animRef.current);
+      }
+    };
+  }, [url]);
+
+  const formatTime = (time: number) => {
+    if (isNaN(time) || !isFinite(time)) return '0:00';
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    const val = parseFloat(e.target.value);
+    audioRef.current.currentTime = val;
+    setCurrentTime(val);
+  };
+
+  return (
+    <div className="flex items-center gap-4 bg-[#08080A]/60 border border-white/[0.04] rounded-2xl p-4 w-full backdrop-blur-md">
+      <audio ref={audioRef} src={url} preload="metadata" />
+      
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes wave-bar-anim {
+          0%, 100% { height: 6px; }
+          50% { height: 22px; }
+        }
+        .wave-bar-active {
+          animation: wave-bar-anim 1s ease-in-out infinite;
+        }
+      `}} />
+
+      <button
+        onClick={togglePlay}
+        className="w-11 h-11 rounded-full bg-[#9758FF] hover:bg-[#854EE6] text-white flex items-center justify-center transition-all shadow-lg shadow-[#9758FF]/20 shrink-0 hover:scale-105 active:scale-95"
+      >
+        {isPlaying ? (
+          <Pause size={18} fill="currentColor" stroke="none" />
+        ) : (
+          <Play size={18} fill="currentColor" stroke="none" className="ml-1" />
+        )}
+      </button>
+
+      <div className="flex-1 flex flex-col gap-2 min-w-0">
+        <div className="flex items-center justify-between gap-3 text-[11px] text-[#7A7A80] font-medium">
+          <span>{formatTime(currentTime)}</span>
+          
+          <div className="flex items-center gap-1 h-6 shrink-0">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className={`w-0.5 rounded-full bg-[#9758FF]/60 transition-all duration-300 ${
+                  isPlaying ? 'wave-bar-active' : ''
+                }`}
+                style={{
+                  animationDelay: `${i * 0.15}s`,
+                  height: isPlaying ? undefined : '8px',
+                  marginTop: isPlaying ? undefined : '7px'
+                }}
+              />
+            ))}
+          </div>
+
+          <span>{formatTime(duration)}</span>
+        </div>
+
+        <input
+          type="range"
+          min={0}
+          max={duration || 100}
+          value={currentTime}
+          onChange={handleSeek}
+          onMouseDown={() => setIsSeeking(true)}
+          onMouseUp={() => setIsSeeking(false)}
+          onTouchStart={() => setIsSeeking(true)}
+          onTouchEnd={() => setIsSeeking(false)}
+          className="w-full h-1 bg-white/[0.08] hover:bg-white/[0.12] rounded-lg appearance-none cursor-pointer accent-[#9758FF] outline-none transition-all"
+        />
+      </div>
+    </div>
+  );
+};
+
 export const VoiceSyncContent = () => {
+  const toast = useToast();
   const [view, setView] = useState<'list' | 'create' | 'detail'>('list');
   const [voices, setVoices] = useState<Voice[]>([]);
   const [selected, setSelected] = useState<VoiceSelection | null>(null);
@@ -43,6 +202,7 @@ export const VoiceSyncContent = () => {
   const [detailJob, setDetailJob] = useState<GenerationJob | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [deletingVoice, setDeletingVoice] = useState<Voice | null>(null);
 
   const loadVoices = () => voiceApi.list().then(setVoices).catch(() => {});
   const loadHistory = () => generationApi.listAudio().then(setHistory).catch(() => {});
@@ -102,82 +262,190 @@ export const VoiceSyncContent = () => {
     return (
       <div className="flex-1 w-full max-w-[1040px] flex flex-col gap-6 pb-10">
         <div className="mt-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="bg-[#9758FF]/10 p-2 rounded-lg"><Volume2 size={20} className="text-[#9758FF]" /></div>
+          <div className="flex items-center gap-3.5">
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#9758FF] blur-lg opacity-40 rounded-xl" />
+              <div className="relative bg-gradient-to-br from-[#A06BFF] to-[#6D28D9] p-2.5 rounded-xl shadow-lg shadow-[#9758FF]/30">
+                <Volume2 size={22} className="text-white" />
+              </div>
+            </div>
             <div>
-              <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">VoiceSync AI</h1>
-              <p className="text-[#7A7A80] text-[13px]">Generate speech in a cloned voice from any script.</p>
+              <h1 className="text-[26px] font-bold text-white tracking-tight leading-tight">VoiceSync AI</h1>
+              <p className="text-[#8A8A90] text-[13px] mt-0.5">Create human-like speech in a cloned voice or select a built-in voice.</p>
             </div>
           </div>
-          <button onClick={openCreate} className="bg-[#9758FF] hover:bg-[#854EE6] text-white px-5 py-2.5 rounded-xl font-semibold text-[14px] transition-all flex items-center gap-2 shadow-[0_8px_25px_rgba(151,88,255,0.3)]">
+          <button 
+            onClick={openCreate} 
+            className="bg-[#9758FF] hover:bg-[#854EE6] text-white px-5 py-2.5 rounded-xl font-semibold text-[14px] transition-all flex items-center gap-2 shadow-[0_8px_25px_rgba(151,88,255,0.3)] hover:scale-[1.02] active:scale-[0.98]"
+          >
             <Plus size={18} /> New Speech
           </button>
         </div>
 
-        {/* My Voices */}
-        <div className="bg-[#131316]/40 border border-white/[0.05] rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-white text-[14px] font-semibold">My Voices</h2>
-            <button onClick={() => setCloneOpen(true)} className="flex items-center gap-1.5 text-[12px] text-[#9758FF] font-medium hover:gap-2.5 transition-all">
-              <Plus size={14} /> Clone a voice
-            </button>
-          </div>
-          {voices.length === 0 ? (
-            <p className="text-[#5A5A60] text-[13px]">No cloned voices yet. Clone one from a short audio sample to get started.</p>
-          ) : (
-            <div className="flex flex-col divide-y divide-white/[0.04]">
-              {voices.map((v) => (
-                <div key={v.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                  <span className="h-9 w-9 rounded-lg bg-[#9758FF]/10 border border-[#9758FF]/20 flex items-center justify-center shrink-0"><Mic size={16} className="text-[#9758FF]" /></span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-[13.5px] font-medium truncate">{v.name}</p>
-                    <p className="text-[12px] text-[#7A7A80]">
-                      {v.status === 'ready' && <span className="text-[#34D399]">Ready</span>}
-                      {v.status === 'pending' && <span className="inline-flex items-center gap-1"><Loader2 size={11} className="animate-spin" /> Cloning…</span>}
-                      {v.status === 'failed' && <span className="text-[#F87171]">{v.error || 'Cloning failed'}</span>}
-                    </p>
-                  </div>
-                  <button onClick={() => voiceApi.remove(v.id).then(loadVoices).catch(() => {})} className="p-2 text-[#5A5A60] hover:text-[#F87171] transition-colors" title="Delete voice">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Recent audio */}
-        <div>
-          <h2 className="text-white text-[14px] font-semibold mb-3">Recent Audio</h2>
-          {clips.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-              <div className="bg-[#9758FF]/10 p-4 rounded-2xl"><Volume2 size={26} className="text-[#9758FF]" /></div>
-              <div>
-                <p className="text-white text-[15px] font-semibold">No audio yet</p>
-                <p className="text-[#7A7A80] text-[13px] mt-1">Generate your first voiceover — it’ll show up here.</p>
+        {/* Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
+          {/* My Voices Section */}
+          <div className="lg:col-span-4 flex flex-col gap-4">
+            <div className="bg-[#131316]/40 border border-white/[0.05] rounded-3xl p-5 backdrop-blur-md flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-bold text-[#7A7A80] uppercase tracking-wider">My Cloned Voices</span>
+                <span className="text-[11px] text-[#9758FF] font-semibold bg-[#9758FF]/10 px-2 py-0.5 rounded-full">
+                  {voices.length} Clones
+                </span>
               </div>
-              <button onClick={openCreate} className="bg-[#9758FF] hover:bg-[#854EE6] text-white px-5 py-2.5 rounded-xl font-semibold text-[14px] transition-all flex items-center gap-2">
-                <Plus size={18} /> New Speech
+              
+              <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+                {voices.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-white/[0.05] rounded-2xl p-4 flex flex-col items-center gap-2">
+                    <Mic size={20} className="text-[#5A5A60]" />
+                    <p className="text-[#5A5A60] text-[12px] leading-relaxed">No cloned voices yet.</p>
+                  </div>
+                ) : (
+                  voices.map((v) => (
+                    <div 
+                      key={v.id} 
+                      className="group bg-[#08080A]/60 border border-white/[0.03] hover:border-white/[0.08] hover:bg-[#121215]/80 rounded-2xl p-3 flex items-center gap-3 transition-all duration-300"
+                    >
+                      <div className="h-9 w-9 rounded-xl bg-[#9758FF]/10 border border-[#9758FF]/20 flex items-center justify-center shrink-0">
+                        <Mic size={15} className="text-[#9758FF]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-[13px] font-semibold truncate leading-tight">{v.name}</p>
+                        <div className="text-[11px] mt-0.5 leading-none">
+                          {v.status === 'ready' && <span className="text-[#34D399] font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" /> Ready</span>}
+                          {v.status === 'pending' && <span className="text-[#A06BFF] font-medium flex items-center gap-1"><Loader2 size={10} className="animate-spin" /> Cloning…</span>}
+                          {v.status === 'failed' && <span className="text-[#F87171] font-medium truncate max-w-[130px] inline-block">{v.error || 'Failed'}</span>}
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setDeletingVoice(v)} 
+                        className="p-1.5 text-[#5A5A60] hover:text-[#F87171] hover:bg-[#F87171]/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100" 
+                        title="Delete voice"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <button 
+                onClick={() => setCloneOpen(true)} 
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border border-dashed border-[#9758FF]/30 hover:border-[#9758FF]/60 hover:bg-[#9758FF]/5 text-[#9758FF] font-semibold text-[13px] transition-all cursor-pointer"
+              >
+                <Plus size={16} /> Clone New Voice
               </button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {clips.map((h) => (
-                <div key={h.id} className="bg-[#131316]/40 border border-white/[0.05] rounded-2xl p-4 flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <button onClick={() => openDetail(h)} className="text-left text-[#C4C4C8] text-[13.5px] leading-relaxed line-clamp-2 hover:text-white transition-colors flex-1">
-                      {h.prompt}
-                    </button>
-                    <button onClick={() => downloadAudio(h.outputs[0].url, `vidora-voice-${h.id}.mp3`)} className="p-2 text-[#7A7A80] hover:text-white transition-colors shrink-0" title="Download">
-                      <Download size={16} />
-                    </button>
+          </div>
+
+          {/* Recent Audio Clips Section */}
+          <div className="lg:col-span-8 flex flex-col gap-4">
+            <div className="bg-[#131316]/40 border border-white/[0.05] rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
+              <span className="text-[12px] font-bold text-[#7A7A80] uppercase tracking-wider">Recent Audio Clips</span>
+
+              {clips.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+                  <div className="bg-[#9758FF]/10 p-4 rounded-2xl"><Volume2 size={26} className="text-[#9758FF]" /></div>
+                  <div>
+                    <p className="text-white text-[15px] font-semibold">No clips generated yet</p>
+                    <p className="text-[#7A7A80] text-[13px] mt-1">Your speech generations will automatically show up here.</p>
                   </div>
-                  <audio controls preload="none" src={h.outputs[0].url} className="w-full h-9" />
+                  <button 
+                    onClick={openCreate} 
+                    className="bg-[#9758FF]/10 hover:bg-[#9758FF]/20 border border-[#9758FF]/30 text-[#C9A8FF] px-5 py-2 rounded-xl font-semibold text-[13.5px] transition-all flex items-center gap-2"
+                  >
+                    <Plus size={16} /> New Speech
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {clips.map((h) => (
+                    <div 
+                      key={h.id} 
+                      className="bg-[#08080A]/60 border border-white/[0.03] hover:border-white/[0.06] rounded-2xl p-5 flex flex-col gap-4 transition-all duration-300 relative group"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2.5 text-[11px] text-[#5A5A60] mb-2 font-medium">
+                            <span className="flex items-center gap-1"><Clock size={11} /> {new Date(h.created_at).toLocaleDateString()}</span>
+                            <span>•</span>
+                            <span className="bg-[#9758FF]/10 text-[#C9A8FF] px-2 py-0.5 rounded-full text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
+                              <Mic size={10} /> Cloned Voice
+                            </span>
+                          </div>
+
+                          <button 
+                            onClick={() => openDetail(h)} 
+                            className="text-left text-white font-medium text-[14px] leading-relaxed hover:text-[#9758FF] transition-colors line-clamp-2"
+                          >
+                            {h.prompt}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <button 
+                            onClick={() => openDetail(h)} 
+                            className="p-2 text-[#7A7A80] hover:text-white hover:bg-white/[0.05] rounded-xl transition-all" 
+                            title="View details"
+                          >
+                            <FileText size={15} />
+                          </button>
+                          <button 
+                            onClick={() => downloadAudio(h.outputs[0].url, `vidora-voice-${h.id}.mp3`)} 
+                            className="p-2 text-[#7A7A80] hover:text-white hover:bg-white/[0.05] rounded-xl transition-all" 
+                            title="Download MP3"
+                          >
+                            <Download size={15} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <AudioPlayer url={h.outputs[0].url} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
+
+        {deletingVoice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-[#0f0f12] border border-white/[0.08] rounded-3xl p-6 max-w-sm w-full flex flex-col gap-4 shadow-2xl animate-fade-in">
+              <div className="flex items-center gap-3 text-[#F87171]">
+                <div className="bg-[#F87171]/10 p-2.5 rounded-xl"><AlertCircle size={22} /></div>
+                <h3 className="text-white text-[16px] font-bold">Delete Cloned Voice</h3>
+              </div>
+              <p className="text-[#7A7A80] text-[13px] leading-relaxed">
+                Are you sure you want to delete "<span className="text-white font-medium">{deletingVoice.name}</span>"? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setDeletingVoice(null)}
+                  className="flex-1 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[#A1A1A5] py-2.5 rounded-xl text-[13px] font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    voiceApi.remove(deletingVoice.id)
+                      .then(() => {
+                        loadVoices();
+                        toast.success("Voice deleted successfully");
+                      })
+                      .catch(() => {
+                        toast.error("Failed to delete voice");
+                      });
+                    setDeletingVoice(null);
+                  }}
+                  className="flex-1 bg-[#F87171] hover:bg-[#EF4444] text-white py-2.5 rounded-xl text-[13px] font-semibold transition-all shadow-lg shadow-[#F87171]/10"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {cloneOpen && <CloneVoiceModal onClose={() => setCloneOpen(false)} onCreated={loadVoices} />}
       </div>
@@ -186,24 +454,108 @@ export const VoiceSyncContent = () => {
 
   // ---- DETAIL VIEW --------------------------------------------------------
   if (view === 'detail' && detailJob) {
+    const wordCount = detailJob.prompt.split(/\s+/).filter(Boolean).length;
+    const charCount = detailJob.prompt.length;
+
+    const copyToClipboard = () => {
+      navigator.clipboard.writeText(detailJob.prompt);
+      toast.success("Script copied to clipboard!");
+    };
+
+    const handleReuseScript = () => {
+      setText(detailJob.prompt);
+      const targetVoiceId = detailJob.input_params?.voice || detailJob.input_params?.stock_voice_id;
+      if (targetVoiceId) {
+        const matchingCloned = voices.find(v => v.id === targetVoiceId);
+        if (matchingCloned) {
+          setSelected({ kind: 'cloned', id: matchingCloned.id, name: matchingCloned.name });
+        }
+      }
+      setView('create');
+    };
+
     return (
       <div className="flex-1 w-full max-w-[1040px] flex flex-col gap-6 pb-10">
         <div className="mt-2 flex items-center justify-between gap-3">
-          <button onClick={() => setView('list')} className="group flex items-center gap-2 text-[#7A7A80] hover:text-white transition-colors">
+          <button 
+            onClick={() => setView('list')} 
+            className="group flex items-center gap-2 text-[#7A7A80] hover:text-white transition-colors"
+          >
             <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
             <span className="text-[14px] font-medium">Back to library</span>
           </button>
         </div>
-        <div className="bg-[#131316]/40 border border-white/[0.05] rounded-2xl p-6 space-y-5">
-          <div className="flex items-center gap-2 text-[#7A7A80] text-[12px]">
-            <Clock size={13} /> {new Date(detailJob.created_at).toLocaleString()}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Script / Prompt details */}
+          <div className="lg:col-span-7 bg-[#131316]/40 border border-white/[0.05] rounded-3xl p-6 backdrop-blur-md flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-bold text-[#7A7A80] uppercase tracking-wider flex items-center gap-1.5">
+                <FileText size={14} className="text-[#9758FF]" /> Script Transcript
+              </span>
+              <button 
+                onClick={copyToClipboard}
+                className="flex items-center gap-1.5 text-[12px] text-[#9758FF] hover:text-[#a873ff] transition-colors px-2.5 py-1.5 rounded-lg hover:bg-[#9758FF]/5 font-semibold"
+              >
+                <Copy size={13} /> Copy Script
+              </button>
+            </div>
+
+            <div className="bg-[#08080A]/60 border border-white/[0.03] rounded-2xl p-5 min-h-[200px] max-h-[400px] overflow-y-auto">
+              <p className="text-white text-[14.5px] leading-relaxed whitespace-pre-wrap font-normal">
+                {detailJob.prompt || 'No prompt content.'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4 text-[12px] text-[#5A5A60] px-1 font-semibold">
+              <span>{wordCount} words</span>
+              <span>•</span>
+              <span>{charCount} characters</span>
+            </div>
           </div>
-          <p className="text-[#C4C4C8] text-[14px] leading-relaxed">{detailJob.prompt}</p>
-          <audio controls src={detailJob.outputs[0].url} className="w-full" />
-          <button onClick={() => downloadAudio(detailJob.outputs[0].url, `vidora-voice-${detailJob.id}.mp3`)}
-            className="flex items-center gap-2 bg-[#9758FF]/10 hover:bg-[#9758FF]/20 border border-[#9758FF]/30 text-[#C9A8FF] px-4 py-2 rounded-xl text-[13px] font-semibold transition-all">
-            <Download size={15} /> Download MP3
-          </button>
+
+          {/* Right Column: Audio details */}
+          <div className="lg:col-span-5 bg-[#131316]/40 border border-white/[0.05] rounded-3xl p-6 backdrop-blur-md flex flex-col gap-5">
+            <span className="text-[12px] font-bold text-[#7A7A80] uppercase tracking-wider font-semibold">Audio Output & Specs</span>
+
+            <div className="flex flex-col gap-3">
+              <AudioPlayer url={detailJob.outputs[0].url} />
+            </div>
+
+            <div className="bg-[#08080A]/40 border border-white/[0.03] rounded-2xl p-4 flex flex-col gap-3.5">
+              <div className="flex justify-between items-center text-[12.5px] py-0.5">
+                <span className="text-[#5A5A60] font-semibold">Generated Date</span>
+                <span className="text-white font-medium">{new Date(detailJob.created_at).toLocaleString()}</span>
+              </div>
+              <div className="h-[1px] bg-white/[0.03]" />
+              <div className="flex justify-between items-center text-[12.5px] py-0.5">
+                <span className="text-[#5A5A60] font-semibold">Cost</span>
+                <span className="text-white font-medium">{detailJob.credits_cost || '5'} Credits</span>
+              </div>
+              <div className="h-[1px] bg-white/[0.03]" />
+              <div className="flex justify-between items-center text-[12.5px] py-0.5">
+                <span className="text-[#5A5A60] font-semibold">Service Type</span>
+                <span className="text-[#9758FF] font-semibold flex items-center gap-1">
+                  <Volume2 size={13} /> Text-to-Speech
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <button 
+                onClick={() => downloadAudio(detailJob.outputs[0].url, `vidora-voice-${detailJob.id}.mp3`)}
+                className="w-full bg-[#9758FF] hover:bg-[#854EE6] text-white py-3 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 shadow-[0_8px_25px_rgba(151,88,255,0.25)] hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <Download size={16} /> Download MP3
+              </button>
+              <button 
+                onClick={handleReuseScript}
+                className="w-full bg-[#9758FF]/10 hover:bg-[#9758FF]/15 border border-[#9758FF]/20 text-[#C9A8FF] py-3 rounded-2xl font-bold text-[13.5px] transition-all flex items-center justify-center gap-2 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                <RefreshCw size={15} /> Re-use Script / Prompt
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -311,9 +663,8 @@ export const VoiceSyncContent = () => {
             {job.status === 'succeeded' && job.outputs.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-[12px] text-[#34D399]"><Check size={14} /> Audio ready</div>
-                <div className="flex items-center gap-3 bg-[#08080A]/60 border border-white/[0.05] rounded-xl p-3">
-                  <span className="h-10 w-10 rounded-lg bg-[#9758FF]/10 border border-[#9758FF]/20 flex items-center justify-center shrink-0"><Music size={18} className="text-[#9758FF]" /></span>
-                  <audio controls src={job.outputs[0].url} className="flex-1 h-9" />
+                <div className="w-full">
+                  <AudioPlayer url={job.outputs[0].url} />
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => downloadAudio(job.outputs[0].url, `vidora-voice-${job.id}.mp3`)}

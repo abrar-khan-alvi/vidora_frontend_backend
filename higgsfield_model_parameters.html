@@ -1,0 +1,538 @@
+
+<h2 class="sr-only">Higgsfield API parameter explorer for DoP, Seedance, and Kling models</h2>
+
+<style>
+  .tabs { display: flex; gap: 6px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .tab { padding: 8px 18px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; transition: all 0.15s; }
+  .tab.active { background: var(--color-background-secondary); color: var(--color-text-primary); border-color: var(--color-border-primary); font-weight: 500; }
+  .tab:hover:not(.active) { border-color: var(--color-border-primary); color: var(--color-text-primary); }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .param-row { border-top: 0.5px solid var(--color-border-tertiary); padding: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+  .param-row:last-child { border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .param-header { display: flex; align-items: center; gap: 8px; }
+  .param-name { font-size: 14px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-mono); }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: var(--border-radius-md); }
+  .badge-req { background: var(--color-background-danger); color: var(--color-text-danger); }
+  .badge-opt { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+  .badge-type { background: var(--color-background-info); color: var(--color-text-info); }
+  .param-desc { font-size: 13px; color: var(--color-text-secondary); line-height: 1.5; }
+  .param-control { margin-top: 4px; }
+  .param-control input[type=range] { width: 100%; }
+  .range-row { display: flex; align-items: center; gap: 10px; }
+  .range-row input { flex: 1; }
+  .range-val { font-size: 13px; font-weight: 500; min-width: 40px; color: var(--color-text-primary); }
+  .select-wrap select { width: 100%; padding: 6px 10px; font-size: 13px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); }
+  .toggle-row { display: flex; align-items: center; gap: 10px; }
+  .toggle { width: 36px; height: 20px; border-radius: 10px; background: var(--color-border-secondary); border: none; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
+  .toggle.on { background: #1D9E75; }
+  .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 0.2s; }
+  .toggle.on::after { transform: translateX(16px); }
+  .toggle-label { font-size: 13px; color: var(--color-text-secondary); }
+  .section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-tertiary); margin: 1.5rem 0 0.5rem; }
+  .motion-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; margin-top: 6px; }
+  .motion-chip { padding: 6px 10px; font-size: 12px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); background: transparent; color: var(--color-text-secondary); cursor: pointer; text-align: center; transition: all 0.12s; }
+  .motion-chip.selected { border-color: var(--color-border-info); background: var(--color-background-info); color: var(--color-text-info); }
+  .motion-chip:hover:not(.selected) { border-color: var(--color-border-secondary); color: var(--color-text-primary); }
+  .more-btn { font-size: 12px; color: var(--color-text-info); background: none; border: none; cursor: pointer; padding: 4px 0; text-decoration: underline; }
+  .payload-box { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px; margin-top: 1.5rem; font-family: var(--font-mono); font-size: 12px; color: var(--color-text-primary); line-height: 1.7; white-space: pre-wrap; word-break: break-all; border: 0.5px solid var(--color-border-tertiary); }
+  .copy-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: transparent; color: var(--color-text-secondary); cursor: pointer; margin-top: 10px; }
+  .copy-btn:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+  .model-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 1.25rem; }
+  .model-icon { width: 40px; height: 40px; border-radius: var(--border-radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .model-meta { flex: 1; }
+  .model-name { font-size: 16px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 3px; }
+  .model-sub { font-size: 13px; color: var(--color-text-secondary); margin: 0; }
+  .input-box { width: 100%; font-size: 13px; padding: 8px 10px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-secondary); background: var(--color-background-primary); color: var(--color-text-primary); resize: vertical; box-sizing: border-box; }
+</style>
+
+<div style="padding: 1rem 0 2rem;">
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('dop')"><i class="ti ti-movie" aria-hidden="true" style="margin-right:5px;font-size:14px;vertical-align:-1px"></i>DoP</button>
+  <button class="tab" onclick="switchTab('seedance')"><i class="ti ti-sparkles" aria-hidden="true" style="margin-right:5px;font-size:14px;vertical-align:-1px"></i>Seedance 2.0</button>
+  <button class="tab" onclick="switchTab('kling')"><i class="ti ti-player-play" aria-hidden="true" style="margin-right:5px;font-size:14px;vertical-align:-1px"></i>Kling</button>
+</div>
+
+<!-- DoP Panel -->
+<div class="panel active" id="panel-dop">
+  <div class="model-header">
+    <div class="model-icon" style="background:var(--color-background-info)"><i class="ti ti-camera" style="font-size:20px;color:var(--color-text-info)" aria-hidden="true"></i></div>
+    <div class="model-meta">
+      <p class="model-name">Higgsfield DoP <span style="font-size:12px;font-weight:400;color:var(--color-text-secondary)">(Director of Photography)</span></p>
+      <p class="model-sub">Animates a still image into a cinematic video clip with 100+ camera motion presets</p>
+    </div>
+  </div>
+
+  <div class="section-label">Required</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">model</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Quality tier — choose how fast or polished you want the output to be.</div>
+    <div class="param-control select-wrap">
+      <select id="dop-model" onchange="updateDopPayload()">
+        <option value="dop-lite">dop-lite — fastest, good for quick drafts</option>
+        <option value="dop-preview" selected>dop-preview — best quality, slower render</option>
+        <option value="dop-turbo">dop-turbo — faster with great detail</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">prompt</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Describe how the scene should move or feel. Be specific — mention camera movement, lighting, wind, emotion.</div>
+    <div class="param-control">
+      <textarea class="input-box" id="dop-prompt" rows="3" onchange="updateDopPayload()" oninput="updateDopPayload()">Make the dress flow dramatically in the wind as the camera slowly circles around her, capturing the golden sunset light.</textarea>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">image_urls</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string[]</span>
+    </div>
+    <div class="param-desc">URL of the source image you want to animate. Should be a clear, well-lit photo.</div>
+    <div class="param-control">
+      <input class="input-box" id="dop-image" type="text" value="https://your-cdn.com/image.png" oninput="updateDopPayload()" />
+    </div>
+  </div>
+
+  <div class="section-label">Optional</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">motion_id</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">UUID</span>
+    </div>
+    <div class="param-desc">Pick a preset camera movement. Leave empty to let the AI choose based on your prompt. A few popular ones:</div>
+    <div class="param-control">
+      <div class="motion-grid" id="dop-motions">
+        <button class="motion-chip selected" onclick="selectMotion(this,'c5881721-05b1-47d9-94d6-0203863114e1')">Arc Left</button>
+        <button class="motion-chip" onclick="selectMotion(this,'a85cb3f2-f2be-4ee2-b3b9-808fc6a81acc')">Arc Right</button>
+        <button class="motion-chip" onclick="selectMotion(this,'ea035f68-b350-40f1-b7f4-7dff999fdd67')">360 Orbit</button>
+        <button class="motion-chip" onclick="selectMotion(this,'2bae49e6-ffe7-42a8-a73f-d44632c4acaa')">3D Rotation</button>
+        <button class="motion-chip" onclick="selectMotion(this,'dc8d7d9c-ae0c-45fc-b780-7d470b171b45')">Action Run</button>
+        <button class="motion-chip" onclick="selectMotion(this,'1b4c1b9a-898b-451c-bff8-7288382ccaf2')">Basketball Dunk</button>
+        <button class="motion-chip none-chip" onclick="selectMotion(this,'')">None (auto)</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">motion_strength</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">0 – 1</span>
+    </div>
+    <div class="param-desc">How intense the movement is. Low = subtle atmosphere. High = dramatic, fast camera work.</div>
+    <div class="param-control range-row">
+      <span style="font-size:12px;color:var(--color-text-tertiary)">subtle</span>
+      <input type="range" min="0" max="1" step="0.1" value="0.8" id="dop-strength" oninput="document.getElementById('dop-strength-val').textContent=parseFloat(this.value).toFixed(1);updateDopPayload()" />
+      <span style="font-size:12px;color:var(--color-text-tertiary)">dramatic</span>
+      <span class="range-val" id="dop-strength-val">0.8</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">seed</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">1 – 1,000,000</span>
+    </div>
+    <div class="param-desc">Set a number to get the exact same output every time. Useful for testing. Leave random for varied results.</div>
+    <div class="param-control range-row">
+      <input type="range" min="1" max="999999" step="1" value="12345" id="dop-seed" oninput="document.getElementById('dop-seed-val').textContent=parseInt(this.value).toLocaleString();updateDopPayload()" />
+      <span class="range-val" id="dop-seed-val" style="min-width:60px">12,345</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">enhance_prompt</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">boolean</span>
+    </div>
+    <div class="param-desc">Let Higgsfield's AI automatically improve your prompt before generating. Good when you want richer results without rewriting manually.</div>
+    <div class="param-control toggle-row">
+      <button class="toggle on" id="dop-enhance" onclick="toggleParam(this,'dop-enhance','dop-enhance-lbl');updateDopPayload()" aria-label="Toggle enhance prompt"></button>
+      <span class="toggle-label" id="dop-enhance-lbl">Enabled — AI will refine your prompt</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">check_nsfw</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">boolean</span>
+    </div>
+    <div class="param-desc">Blocks inappropriate content from being generated. Keep on for production apps.</div>
+    <div class="param-control toggle-row">
+      <button class="toggle on" id="dop-nsfw" onclick="toggleParam(this,'dop-nsfw','dop-nsfw-lbl');updateDopPayload()" aria-label="Toggle NSFW check"></button>
+      <span class="toggle-label" id="dop-nsfw-lbl">Enabled — content filter is on</span>
+    </div>
+  </div>
+
+  <div style="margin-top:1.5rem;font-size:13px;font-weight:500;color:var(--color-text-secondary)">Generated payload</div>
+  <div class="payload-box" id="dop-payload"></div>
+  <button class="copy-btn" onclick="copyPayload('dop-payload')"><i class="ti ti-copy" aria-hidden="true" style="font-size:15px"></i><span id="dop-copy-txt">Copy JSON</span></button>
+</div>
+
+<!-- Seedance Panel -->
+<div class="panel" id="panel-seedance">
+  <div class="model-header">
+    <div class="model-icon" style="background:var(--color-background-success)"><i class="ti ti-sparkles" style="font-size:20px;color:var(--color-text-success)" aria-hidden="true"></i></div>
+    <div class="model-meta">
+      <p class="model-name">Seedance 2.0 <span style="font-size:12px;font-weight:400;color:var(--color-text-secondary)">by ByteDance</span></p>
+      <p class="model-sub">Cinematic multi-shot video with native audio, realistic physics, and character consistency</p>
+    </div>
+  </div>
+
+  <div class="section-label">Required</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">prompt</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Describe your video scene. Include subjects, setting, mood, and camera movement for best results.</div>
+    <div class="param-control">
+      <textarea class="input-box" id="sd-prompt" rows="3" onchange="updateSdPayload()" oninput="updateSdPayload()">A cinematic close-up of a coffee cup on a rainy window sill, steam rising, soft bokeh background</textarea>
+    </div>
+  </div>
+
+  <div class="section-label">Optional</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">input_image</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string (URL)</span>
+    </div>
+    <div class="param-desc">Provide a starting image to animate from. When set, switches to image-to-video mode.</div>
+    <div class="param-control">
+      <input class="input-box" id="sd-image" type="text" placeholder="https://your-cdn.com/image.jpg (leave blank for text-to-video)" oninput="updateSdPayload()" />
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">resolution</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Output video quality. Use 720p for drafts and fast previews, 1080p for final delivery.</div>
+    <div class="param-control select-wrap">
+      <select id="sd-res" onchange="updateSdPayload()">
+        <option value="720p" selected>720p — fast renders, good for testing</option>
+        <option value="1080p">1080p — high quality, slower</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">aspect_ratio</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Shape of the output video. 16:9 for landscape/YouTube, 9:16 for Reels/TikTok, 1:1 for square posts.</div>
+    <div class="param-control select-wrap">
+      <select id="sd-ratio" onchange="updateSdPayload()">
+        <option value="16:9" selected>16:9 — widescreen / YouTube / landscape</option>
+        <option value="9:16">9:16 — vertical / Reels / TikTok</option>
+        <option value="1:1">1:1 — square / Instagram post</option>
+        <option value="4:3">4:3 — classic / presentation</option>
+        <option value="21:9">21:9 — ultra-wide / cinematic</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">duration</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">integer (seconds)</span>
+    </div>
+    <div class="param-desc">How long the video should be. Longer clips cost more credits.</div>
+    <div class="param-control range-row">
+      <span style="font-size:12px;color:var(--color-text-tertiary)">4s</span>
+      <input type="range" min="4" max="15" step="1" value="5" id="sd-dur" oninput="document.getElementById('sd-dur-val').textContent=this.value+'s';updateSdPayload()" />
+      <span style="font-size:12px;color:var(--color-text-tertiary)">15s</span>
+      <span class="range-val" id="sd-dur-val">5s</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">seed</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">integer</span>
+    </div>
+    <div class="param-desc">Fix this number to reproduce the exact same output. Change it to get new variations.</div>
+    <div class="param-control range-row">
+      <input type="range" min="1" max="999999" step="1" value="42000" id="sd-seed" oninput="document.getElementById('sd-seed-val').textContent=parseInt(this.value).toLocaleString();updateSdPayload()" />
+      <span class="range-val" id="sd-seed-val" style="min-width:60px">42,000</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">enhance_prompt</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">boolean</span>
+    </div>
+    <div class="param-desc">Automatically rewrites and enriches your prompt before sending to the model for better results.</div>
+    <div class="param-control toggle-row">
+      <button class="toggle" id="sd-enhance" onclick="toggleParam(this,'sd-enhance','sd-enhance-lbl');updateSdPayload()" aria-label="Toggle enhance prompt"></button>
+      <span class="toggle-label" id="sd-enhance-lbl">Disabled — your prompt is used as-is</span>
+    </div>
+  </div>
+
+  <div style="margin-top:1.5rem;font-size:13px;font-weight:500;color:var(--color-text-secondary)">Generated payload</div>
+  <div class="payload-box" id="sd-payload"></div>
+  <button class="copy-btn" onclick="copyPayload('sd-payload')"><i class="ti ti-copy" aria-hidden="true" style="font-size:15px"></i><span id="sd-copy-txt">Copy JSON</span></button>
+</div>
+
+<!-- Kling Panel -->
+<div class="panel" id="panel-kling">
+  <div class="model-header">
+    <div class="model-icon" style="background:var(--color-background-warning)"><i class="ti ti-bolt" style="font-size:20px;color:var(--color-text-warning)" aria-hidden="true"></i></div>
+    <div class="model-meta">
+      <p class="model-name">Kling <span style="font-size:12px;font-weight:400;color:var(--color-text-secondary)">by Kuaishou</span></p>
+      <p class="model-sub">Photorealistic video generation with first-frame to last-frame control and ultra-realism</p>
+    </div>
+  </div>
+
+  <div class="section-label">Model variant</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">model</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Which Kling version to use. Newer = better quality but higher credit cost.</div>
+    <div class="param-control select-wrap">
+      <select id="kl-model" onchange="updateKlPayload()">
+        <option value="kling-video/v2.1/pro/image-to-video">v2.1 Pro — stable, battle-tested</option>
+        <option value="kling-video/v2.5/turbo/image-to-video">v2.5 Turbo — fast generation, quality output</option>
+        <option value="kling-video/v2.6/pro/image-to-video" selected>v2.6 Pro — ultra-realism, 5–10s support</option>
+        <option value="kling-video/v3.0/pro/image-to-video">v3.0 Pro — next-gen detail and motion</option>
+        <option value="kling-video/v3.0/standard/image-to-video">v3.0 Standard — affordable v3 tier</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section-label">Required</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">prompt</span>
+      <span class="badge badge-req">required</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Describe the motion, mood, and scene you want. Kling responds well to cinematic language.</div>
+    <div class="param-control">
+      <textarea class="input-box" id="kl-prompt" rows="3" onchange="updateKlPayload()" oninput="updateKlPayload()">Slow push-in on a mountain peak at golden hour, clouds drifting past, ultra-realistic lighting</textarea>
+    </div>
+  </div>
+
+  <div class="section-label">Optional</div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">start_image_url</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string (URL)</span>
+    </div>
+    <div class="param-desc">The first frame of your video. Kling will animate from this image forward.</div>
+    <div class="param-control">
+      <input class="input-box" id="kl-start" type="text" placeholder="https://your-cdn.com/first-frame.jpg" oninput="updateKlPayload()" />
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">end_image_url</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string (URL)</span>
+    </div>
+    <div class="param-desc">The last frame of your video. Kling will interpolate between the start and end image — great for controlled transitions.</div>
+    <div class="param-control">
+      <input class="input-box" id="kl-end" type="text" placeholder="https://your-cdn.com/last-frame.jpg (optional)" oninput="updateKlPayload()" />
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">duration</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">integer (seconds)</span>
+    </div>
+    <div class="param-desc">Length of the output video in seconds.</div>
+    <div class="param-control range-row">
+      <span style="font-size:12px;color:var(--color-text-tertiary)">5s</span>
+      <input type="range" min="5" max="10" step="5" value="5" id="kl-dur" oninput="document.getElementById('kl-dur-val').textContent=this.value+'s';updateKlPayload()" />
+      <span style="font-size:12px;color:var(--color-text-tertiary)">10s</span>
+      <span class="range-val" id="kl-dur-val">5s</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">aspect_ratio</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Aspect ratio of the output. Match this to your target platform.</div>
+    <div class="param-control select-wrap">
+      <select id="kl-ratio" onchange="updateKlPayload()">
+        <option value="16:9" selected>16:9 — widescreen / YouTube</option>
+        <option value="9:16">9:16 — vertical / Reels / TikTok</option>
+        <option value="1:1">1:1 — square / Instagram</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">negative_prompt</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">string</span>
+    </div>
+    <div class="param-desc">Describe what you DON'T want in the video — blurry, distorted faces, bad lighting, etc.</div>
+    <div class="param-control">
+      <input class="input-box" id="kl-neg" type="text" placeholder="blurry, distorted faces, low quality, overexposed" oninput="updateKlPayload()" />
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">seed</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">integer</span>
+    </div>
+    <div class="param-desc">Reproducibility seed. Same seed = same output every time.</div>
+    <div class="param-control range-row">
+      <input type="range" min="1" max="999999" step="1" value="77777" id="kl-seed" oninput="document.getElementById('kl-seed-val').textContent=parseInt(this.value).toLocaleString();updateKlPayload()" />
+      <span class="range-val" id="kl-seed-val" style="min-width:60px">77,777</span>
+    </div>
+  </div>
+
+  <div class="param-row">
+    <div class="param-header">
+      <span class="param-name">enhance_prompt</span>
+      <span class="badge badge-opt">optional</span>
+      <span class="badge badge-type">boolean</span>
+    </div>
+    <div class="param-desc">Let the AI improve your prompt automatically for richer cinematic output.</div>
+    <div class="param-control toggle-row">
+      <button class="toggle on" id="kl-enhance" onclick="toggleParam(this,'kl-enhance','kl-enhance-lbl');updateKlPayload()" aria-label="Toggle enhance prompt"></button>
+      <span class="toggle-label" id="kl-enhance-lbl">Enabled — AI will refine your prompt</span>
+    </div>
+  </div>
+
+  <div style="margin-top:1.5rem;font-size:13px;font-weight:500;color:var(--color-text-secondary)">Generated payload</div>
+  <div class="payload-box" id="kl-payload"></div>
+  <button class="copy-btn" onclick="copyPayload('kl-payload')"><i class="ti ti-copy" aria-hidden="true" style="font-size:15px"></i><span id="kl-copy-txt">Copy JSON</span></button>
+</div>
+
+</div>
+
+<script>
+let selectedMotionId = 'c5881721-05b1-47d9-94d6-0203863114e1';
+
+function switchTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('panel-' + id).classList.add('active');
+}
+
+function toggleParam(btn, id, lblId) {
+  btn.classList.toggle('on');
+  const on = btn.classList.contains('on');
+  document.getElementById(lblId).textContent = on
+    ? (id.includes('nsfw') ? 'Enabled — content filter is on' : 'Enabled — AI will refine your prompt')
+    : (id.includes('nsfw') ? 'Disabled — no content filter' : 'Disabled — your prompt is used as-is');
+}
+
+function selectMotion(el, id) {
+  document.querySelectorAll('.motion-chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedMotionId = id;
+  updateDopPayload();
+}
+
+function updateDopPayload() {
+  const obj = {
+    model: document.getElementById('dop-model').value,
+    prompt: document.getElementById('dop-prompt').value,
+    image_urls: [document.getElementById('dop-image').value],
+    motion_strength: parseFloat(parseFloat(document.getElementById('dop-strength').value).toFixed(1)),
+    seed: parseInt(document.getElementById('dop-seed').value),
+    enhance_prompt: document.getElementById('dop-enhance').classList.contains('on'),
+    check_nsfw: document.getElementById('dop-nsfw').classList.contains('on')
+  };
+  if (selectedMotionId) obj.motion_id = selectedMotionId;
+  document.getElementById('dop-payload').textContent = JSON.stringify(obj, null, 2);
+}
+
+function updateSdPayload() {
+  const img = document.getElementById('sd-image').value.trim();
+  const obj = {
+    model: img ? 'bytedance/seedance/v2/image-to-video' : 'bytedance/seedance/v2/text-to-video',
+    prompt: document.getElementById('sd-prompt').value,
+    resolution: document.getElementById('sd-res').value,
+    aspect_ratio: document.getElementById('sd-ratio').value,
+    duration: parseInt(document.getElementById('sd-dur').value),
+    seed: parseInt(document.getElementById('sd-seed').value),
+    enhance_prompt: document.getElementById('sd-enhance').classList.contains('on')
+  };
+  if (img) obj.input_image = img;
+  document.getElementById('sd-payload').textContent = JSON.stringify(obj, null, 2);
+}
+
+function updateKlPayload() {
+  const start = document.getElementById('kl-start').value.trim();
+  const end = document.getElementById('kl-end').value.trim();
+  const neg = document.getElementById('kl-neg').value.trim();
+  const obj = {
+    model: document.getElementById('kl-model').value,
+    prompt: document.getElementById('kl-prompt').value,
+    duration: parseInt(document.getElementById('kl-dur').value),
+    aspect_ratio: document.getElementById('kl-ratio').value,
+    seed: parseInt(document.getElementById('kl-seed').value),
+    enhance_prompt: document.getElementById('kl-enhance').classList.contains('on')
+  };
+  if (start) obj.start_image_url = start;
+  if (end) obj.end_image_url = end;
+  if (neg) obj.negative_prompt = neg;
+  document.getElementById('kl-payload').textContent = JSON.stringify(obj, null, 2);
+}
+
+function copyPayload(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const suffix = id.split('-')[0];
+    const btn = document.getElementById(suffix + '-copy-txt');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy JSON', 1800);
+  });
+}
+
+updateDopPayload();
+updateSdPayload();
+updateKlPayload();
+</script>

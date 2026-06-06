@@ -4,6 +4,7 @@ import {BrowserRouter} from 'react-router-dom';
 import App from './App.tsx';
 import {AuthProvider} from './auth/AuthContext';
 import {AuthFlowProvider} from './auth/AuthFlowContext';
+import {ToastProvider} from './components/Toast';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <AuthProvider>
         <AuthFlowProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AuthFlowProvider>
       </AuthProvider>
     </BrowserRouter>

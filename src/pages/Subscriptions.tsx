@@ -9,8 +9,10 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { billingApi, type SubscriptionStatus } from '../lib/api/billing';
+import { useToast } from '../components/Toast';
 
 export const SubscriptionsContent = () => {
+  const toast = useToast();
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export const SubscriptionsContent = () => {
       }
     } catch (err) {
       console.error('Checkout failed:', err);
-      alert('Checkout failed. Please try again.');
+      toast.error('Checkout failed. Please try again.');
     } finally {
       setCheckoutLoading(null);
     }
@@ -51,7 +53,7 @@ export const SubscriptionsContent = () => {
       }
     } catch (err) {
       console.error('Portal failed:', err);
-      alert('Could not open billing portal.');
+      toast.error('Could not open billing portal.');
     } finally {
       setCheckoutLoading(null);
     }
