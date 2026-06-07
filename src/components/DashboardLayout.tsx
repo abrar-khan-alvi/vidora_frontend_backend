@@ -207,11 +207,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   <div className="text-[14px] font-medium text-[#EAEAEA] leading-tight">{displayName}</div>
                   <div className="text-[12px] text-[#7A7A80] max-w-[160px] truncate">{user?.email ?? 'User'}</div>
                 </div>
-                <img
-                  src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                  alt="Profile"
-                  className="w-10 h-10 rounded-full object-cover ml-1"
-                />
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt="Profile"
+                    className="w-10 h-10 rounded-full object-cover ml-1"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-gradient-to-br from-[#A06BFF] to-[#6D28D9] flex items-center justify-center text-white text-[16px] font-bold ml-1">
+                    {displayName[0]?.toUpperCase() || 'U'}
+                  </div>
+                )}
                 <ChevronDown size={14} className={`text-[#7A7A80] ml-1 transition-transform duration-200 ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
               </div>
 

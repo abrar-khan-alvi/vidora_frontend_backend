@@ -1,5 +1,7 @@
 import type { LoginResponse, User } from '../types';
-import { apiFetch } from './client';
+import { apiFetch, ApiError, refreshAccessToken } from './client';
+import { API_BASE_URL } from '../config';
+import { tokenStorage } from '../tokenStorage';
 
 /** Thin, typed wrapper over the backend's /api/auth endpoints. */
 export const authApi = {
@@ -25,6 +27,35 @@ export const authApi = {
 
   updateProfile: (displayName: string) =>
     apiFetch<User>('/auth/me/', { method: 'PATCH', auth: true, body: { display_name: displayName } }),
+
+  updateAvatar: async (file: File): Promise<User> => {
+    const send = (token: string | null) => {
+      const form = new FormData();
+      form.append('avatar', file);
+      return fetch(`${API_BASE_URL}/auth/me/`, {
+        method: 'PATCH',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      });
+    };
+
+    let res = await send(tokenStorage.getAccess());
+    if (res.status === 401) {
+      const newAccess = await refreshAccessToken();
+      if (newAccess) res = await send(newAccess);
+    }
+
+    if (!res.ok) {
+      let data: unknown = null;
+      try {
+        data = await res.json();
+      } catch {
+        /* ignore */
+      }
+      throw new ApiError(`Avatar update failed (${res.status})`, res.status, data);
+    }
+    return res.json() as Promise<User>;
+  },
 
   changePassword: (currentPassword: string, newPassword: string) =>
     apiFetch<{ detail: string }>('/auth/me/password/', {

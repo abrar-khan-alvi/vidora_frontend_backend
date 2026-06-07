@@ -9,7 +9,7 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "email", "display_name", "is_active", "date_joined")
+        fields = ("id", "email", "display_name", "avatar", "is_active", "date_joined")
         read_only_fields = fields
 
 
@@ -35,12 +35,15 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
-    """Edit the parts of the profile a user may change (just the display name)."""
+    """Edit the parts of the profile a user may change (display name or avatar)."""
 
     class Meta:
         model = User
-        fields = ("display_name",)
-        extra_kwargs = {"display_name": {"required": True, "allow_blank": False, "max_length": 120}}
+        fields = ("display_name", "avatar")
+        extra_kwargs = {
+            "display_name": {"required": False, "allow_blank": False, "max_length": 120},
+            "avatar": {"required": False, "allow_null": True},
+        }
 
 
 class ChangePasswordSerializer(serializers.Serializer):

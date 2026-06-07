@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User as UserIcon, Mail, Calendar, ShieldCheck, Loader2, Check, AlertCircle,
-  Save, KeyRound, Layers, ImagePlus, Video, Mic, Zap, Plus, Clock,
+  Save, KeyRound, Layers, ImagePlus, Video, Mic, Zap, Plus, Clock, Camera,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../auth/AuthContext';
@@ -11,6 +11,7 @@ import { ApiError } from '../lib/api/client';
 import { generationApi, type GenerationJob } from '../lib/api/generation';
 import { referenceApi, type TrainedReference } from '../lib/api/studio';
 import { voiceApi } from '../lib/api/voice';
+import { useToast } from '../components/Toast';
 
 const fieldErr = (e: unknown, key: string, fallback: string) => {
   if (e instanceof ApiError && e.data && typeof e.data === 'object') {
@@ -25,11 +26,13 @@ const fieldErr = (e: unknown, key: string, fallback: string) => {
 export const AccountSettingsContent = () => {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   // Profile
   const [name, setName] = useState(user?.display_name ?? '');
   const [savingName, setSavingName] = useState(false);
   const [nameMsg, setNameMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Password
   const [current, setCurrent] = useState('');
@@ -45,6 +48,25 @@ export const AccountSettingsContent = () => {
   useEffect(() => { setName(user?.display_name ?? ''); }, [user?.display_name]);
 
   const loadRefs = () => referenceApi.list().then(setRefs).catch(() => {});
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file.');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const updatedUser = await authApi.updateAvatar(file);
+      updateUser(updatedUser);
+      toast.success('Profile picture updated successfully!');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload profile picture.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -135,7 +157,26 @@ export const AccountSettingsContent = () => {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#16121F] to-[#0E0E10] p-6 mb-5 flex items-center gap-4">
         <div aria-hidden className="pointer-events-none absolute -top-16 -right-8 w-64 h-40 bg-[#9758FF]/20 blur-[110px] rounded-full" />
-        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-[#A06BFF] to-[#6D28D9] flex items-center justify-center text-white text-[26px] font-bold shadow-lg shrink-0">{initials}</div>
+        <div className="relative group h-16 w-16 rounded-2xl overflow-hidden shadow-lg shrink-0 cursor-pointer">
+          {user?.avatar ? (
+            <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-[#A06BFF] to-[#6D28D9] flex items-center justify-center text-white text-[26px] font-bold">
+              {initials}
+            </div>
+          )}
+          <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-[10px] text-white font-medium transition-opacity cursor-pointer">
+            {uploadingAvatar ? (
+              <Loader2 size={16} className="animate-spin text-[#C9A8FF]" />
+            ) : (
+              <>
+                <Camera size={14} className="mb-0.5 text-white" />
+                <span>Change</span>
+              </>
+            )}
+            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={uploadingAvatar} />
+          </label>
+        </div>
         <div className="min-w-0">
           <p className="text-white font-semibold text-[18px] truncate">{user?.display_name || 'Your name'}</p>
           <p className="text-[#A1A1A5] text-[13.5px] truncate flex items-center gap-1.5"><Mail size={13} /> {user?.email}</p>

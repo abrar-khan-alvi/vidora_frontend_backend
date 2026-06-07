@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   display_name: string;
+  avatar?: string | null;
   is_active: boolean;
   date_joined: string;
 }
