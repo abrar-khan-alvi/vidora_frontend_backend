@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Settings,
   LogOut,
-  Zap
+  Zap,
+  Smile,
 } from 'lucide-react';
 import { Logo } from './ui';
 import { useAuth } from '../auth/AuthContext';
@@ -26,6 +27,7 @@ const navItems = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
   { id: 'prompton', icon: Sparkles, label: 'Prompton' },
   { id: 'image-generation', icon: ImagePlus, label: 'Image Generation' },
+  { id: 'references', icon: Smile, label: 'Custom References' },
   { id: 'video-generation', icon: PlaySquare, label: 'Video Generation' },
   { id: 'voicesync', icon: Mic, label: 'VoiceSync AI' },
   { id: 'subscriptions', icon: RefreshCw, label: 'Subscriptions' },
@@ -85,10 +87,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   return (
     <div className="flex bg-[#08080A] min-h-screen text-white w-full overflow-hidden absolute inset-0 z-50">
-      
+
       {/* Mobile Menu Backdrop */}
       {isMobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
@@ -96,10 +98,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
       {/* Sidebar */}
       <div className={`fixed lg:static inset-y-0 left-0 w-[280px] shrink-0 border-r border-[#1e1e24] flex flex-col bg-[#0A0A0C] z-[70] transform transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        
+
         <div className="p-8 pb-4 flex items-center justify-center lg:justify-start">
           <Logo className="mb-0" />
-          <button 
+          <button
             className="lg:hidden ml-auto text-[#7A7A80] hover:text-white"
             onClick={() => setIsMobileMenuOpen(false)}
           >
@@ -110,7 +112,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         <div className="flex-1 px-4 overflow-y-auto overflow-x-hidden pb-4">
           <div className="bg-[#161619] border border-[#24242B] rounded-[16px] py-4 px-2">
             <div className="text-[#7A7A80] text-[11.5px] font-semibold tracking-wider mb-3 ml-4">MAIN MENU</div>
-            
+
             <nav className="space-y-1">
               {navItems.map((item) => {
                 const active = item.id === activeTab;
@@ -118,11 +120,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   <button
                     key={item.id}
                     onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-[14px] ${
-                      active 
-                        ? 'bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] text-white font-medium shadow-[0_4px_12px_rgba(106,57,196,0.3)]' 
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-[14px] ${active
+                        ? 'bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] text-white font-medium shadow-[0_4px_12px_rgba(106,57,196,0.3)]'
                         : 'text-[#7A7A80] hover:text-[#C4C4C8] hover:bg-white/[0.02]'
-                    }`}
+                      }`}
                   >
                     <item.icon size={18} className={active ? 'text-white' : 'opacity-80'} strokeWidth={active ? 2 : 1.5} />
                     {item.label}
@@ -138,7 +139,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <div className="bg-gradient-to-br from-[#1A1A20] to-[#121216] border border-white/[0.05] rounded-[20px] p-5 relative overflow-hidden group">
             {/* Decorative background glow */}
             <div className="absolute -top-10 -right-10 w-24 h-24 bg-[#9758FF] opacity-10 blur-[30px] rounded-full group-hover:opacity-20 transition-opacity"></div>
-            
+
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 rounded-lg bg-[#9758FF]/10 flex items-center justify-center">
@@ -149,15 +150,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   <div className="text-[11px] text-[#7A7A80]">Professional User</div>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between text-[11px]">
                   <span className="text-[#A1A1A5]">Monthly Usage</span>
                   <span className="text-white font-medium">85%</span>
                 </div>
                 <div className="h-1.5 w-full bg-white/[0.05] rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-[#6A39C4] to-[#9758FF] rounded-full" 
+                  <div
+                    className="h-full bg-gradient-to-r from-[#6A39C4] to-[#9758FF] rounded-full"
                     style={{ width: '85%' }}
                   ></div>
                 </div>
@@ -174,13 +175,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0 w-full relative bg-[#08080A]">
         {/* Top Header */}
         <header className="flex justify-between lg:justify-end items-center px-6 lg:px-10 py-6 shrink-0 z-10 bg-[#08080A]">
-          <button 
+          <button
             className="lg:hidden text-[#EAEAEA] hover:text-white"
             onClick={() => setIsMobileMenuOpen(true)}
           >
             <Menu size={24} />
           </button>
-          
+
 
           <div className="flex items-center gap-4 lg:gap-6">
             <button
@@ -196,9 +197,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                 </span>
               )}
             </button>
-            
+
             <div className="relative">
-              <div 
+              <div
                 className="flex items-center gap-3 cursor-pointer select-none"
                 onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
               >
@@ -206,9 +207,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                   <div className="text-[14px] font-medium text-[#EAEAEA] leading-tight">{displayName}</div>
                   <div className="text-[12px] text-[#7A7A80] max-w-[160px] truncate">{user?.email ?? 'User'}</div>
                 </div>
-                <img 
-                  src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" 
-                  alt="Profile" 
+                <img
+                  src="https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                  alt="Profile"
                   className="w-10 h-10 rounded-full object-cover ml-1"
                 />
                 <ChevronDown size={14} className={`text-[#7A7A80] ml-1 transition-transform duration-200 ${isProfileDropdownOpen ? 'rotate-180' : ''}`} />
@@ -216,8 +217,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
               {isProfileDropdownOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-40" 
+                  <div
+                    className="fixed inset-0 z-40"
                     onClick={() => setIsProfileDropdownOpen(false)}
                   />
                   <div className="absolute right-0 mt-3 w-56 bg-[#161619] border border-[#24242B] rounded-[14px] shadow-xl z-50 overflow-hidden py-1.5 flex flex-col">
@@ -245,8 +246,8 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
         {/* Dynamic Content Wrapper. Prompton (a chat) fills the width and
             left-aligns; other pages stay centered at a comfortable max width. */}
-        <main className={`px-5 sm:px-10 pb-10 flex-1 w-full flex overflow-y-auto overflow-x-hidden ${activeTab === 'prompton' ? 'justify-start' : 'justify-center'}`}>
-          <div className={`w-full flex justify-start min-w-0 ${activeTab === 'prompton' ? 'max-w-[1320px]' : 'max-w-[1100px]'}`}>
+        <main className="px-5 sm:px-10 pb-10 flex-1 w-full overflow-y-auto overflow-x-hidden">
+          <div className={`w-full min-w-0 ${activeTab === 'prompton' ? 'max-w-[1320px] mx-auto' : 'max-w-[1100px] mx-auto'}`}>
             {children}
           </div>
         </main>

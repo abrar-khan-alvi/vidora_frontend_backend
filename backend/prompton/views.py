@@ -15,7 +15,10 @@ from .serializers import (
 
 
 def _sse(payload: dict) -> str:
-    return f"data: {json.dumps(payload)}\n\n"
+    # Pad to force Django runserver WSGI buffer to flush immediately.
+    # The frontend ignores the extra whitespace.
+    padding = " " * 2048
+    return f"data: {json.dumps(payload)}\n\n{padding}"
 
 
 class ConversationListCreateView(generics.ListCreateAPIView):

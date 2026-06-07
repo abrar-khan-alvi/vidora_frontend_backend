@@ -54,16 +54,18 @@ export const HistoryLogsContent = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selected, setSelected] = useState<GenerationJob | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const load = () => generationApi.listAll().then(setJobs).catch(() => {}).finally(() => setLoading(false));
+  const load = () => generationApi.listAll().then(setJobs).catch(() => { }).finally(() => setLoading(false));
   useEffect(() => { load(); }, []);
 
   // Auto-refresh while anything is still in flight.
   useEffect(() => {
     if (!jobs.some((j) => uiStatus(j.status) === 'Processing')) return;
-    const t = setInterval(() => generationApi.listAll().then(setJobs).catch(() => {}), 5000);
+    const t = setInterval(() => generationApi.listAll().then(setJobs).catch(() => { }), 5000);
     return () => clearInterval(t);
   }, [jobs]);
 
@@ -89,6 +91,17 @@ export const HistoryLogsContent = () => {
       return matchesSearch && matchesType && matchesStatus;
     });
   }, [jobs, searchTerm, filterType, filterStatus]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType, filterStatus]);
+
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+
+  const paginatedRows = useMemo(() => {
+    const startIdx = (currentPage - 1) * PAGE_SIZE;
+    return rows.slice(startIdx, startIdx + PAGE_SIZE);
+  }, [rows, currentPage]);
 
   return (
     <div className="flex-1 w-full max-w-[1240px] flex flex-col pb-10 min-w-0">
@@ -122,9 +135,8 @@ export const HistoryLogsContent = () => {
           <div ref={filterRef} className="relative">
             <button
               onClick={() => setIsFilterOpen((p) => !p)}
-              className={`flex items-center justify-center gap-2 border text-[14px] transition-colors w-full sm:w-auto px-5 py-2.5 rounded-full ${
-                isFilterOpen || activeFilterCount > 0 ? 'bg-[#9758FF]/10 border-[#9758FF]/40 text-white' : 'bg-[#1B1B21] hover:bg-[#24242B] border-[#24242B] text-[#EAEAEA]'
-              }`}
+              className={`flex items-center justify-center gap-2 border text-[14px] transition-colors w-full sm:w-auto px-5 py-2.5 rounded-full ${isFilterOpen || activeFilterCount > 0 ? 'bg-[#9758FF]/10 border-[#9758FF]/40 text-white' : 'bg-[#1B1B21] hover:bg-[#24242B] border-[#24242B] text-[#EAEAEA]'
+                }`}
             >
               <Filter size={16} className={activeFilterCount > 0 ? 'text-[#9758FF]' : 'text-[#A1A1A5]'} />
               Filter
@@ -186,7 +198,7 @@ export const HistoryLogsContent = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#24242B]">
-              {!loading && rows.map((job) => {
+              {!loading && paginatedRows.map((job) => {
                 const meta = kindMeta(job.kind);
                 const st = uiStatus(job.status);
                 const created = new Date(job.created_at);
@@ -252,8 +264,40 @@ export const HistoryLogsContent = () => {
           </table>
         </div>
 
-        <div className="border-t border-[#24242B] px-6 py-4 flex items-center justify-between">
-          <span className="text-[13.5px] text-[#7A7A80]">Showing {rows.length} of {jobs.length} entries</span>
+        <div className="border-t border-[#24242B] px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="text-[13.5px] text-[#7A7A80]">
+            Showing {rows.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1} to {Math.min(rows.length, currentPage * PAGE_SIZE)} of {rows.length} entries
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={currentPage === 1 || totalPages <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="px-3.5 py-1.5 rounded-lg border border-[#24242B] bg-[#1B1B21] hover:bg-[#24242B] text-[#A1A1A5] hover:text-white disabled:opacity-40 disabled:hover:bg-[#1B1B21] disabled:hover:text-[#A1A1A5] text-[13px] font-semibold transition-colors"
+            >
+              Previous
+            </button>
+            {Array.from({ length: Math.max(1, totalPages) }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                disabled={totalPages <= 1}
+                className={`w-8 h-8 rounded-lg text-[13px] font-bold transition-all ${currentPage === page
+                    ? 'bg-[#9758FF] text-white'
+                    : 'border border-[#24242B] bg-[#1B1B21] hover:bg-[#24242B] text-[#A1A1A5] hover:text-white'
+                  }`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              disabled={currentPage === totalPages || totalPages <= 1}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="px-3.5 py-1.5 rounded-lg border border-[#24242B] bg-[#1B1B21] hover:bg-[#24242B] text-[#A1A1A5] hover:text-white disabled:opacity-40 disabled:hover:bg-[#1B1B21] disabled:hover:text-[#A1A1A5] text-[13px] font-semibold transition-colors"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
@@ -298,9 +342,9 @@ export const HistoryLogsContent = () => {
                     <p className="text-[#7A7A80] text-[11px] font-bold uppercase tracking-wider mb-2">Output</p>
                     <div className="flex flex-col gap-3">
                       {selected.outputs.map((o, i) => (
-                        <div key={o.id} className="relative group rounded-xl overflow-hidden border border-[#24242B] bg-[#08080A]">
-                          {selected.kind === 'image' && <img src={o.url} alt={selected.prompt} className="w-full h-auto block" />}
-                          {selected.kind === 'video' && <video src={o.url} controls className="w-full h-auto block" />}
+                        <div key={o.id} className="relative group rounded-xl overflow-hidden border border-[#24242B] bg-[#08080A] flex items-center justify-center mx-auto w-fit">
+                          {selected.kind === 'image' && <img src={o.url} alt={selected.prompt} className="max-h-[50vh] w-auto max-w-full block" />}
+                          {selected.kind === 'video' && <video src={o.url} controls className="max-h-[50vh] w-auto max-w-full block" />}
                           {selected.kind === 'audio' && <audio src={o.url} controls className="w-full p-3" />}
                           <button
                             onClick={() => downloadFile(o.url, `vidora-${selected.kind}-${o.id}.${selected.kind === 'image' ? 'png' : selected.kind === 'video' ? 'mp4' : 'mp3'}`)}

@@ -11,6 +11,7 @@ from .serializers import (
     CreateVideoJobSerializer,
     GenerationJobSerializer,
 )
+from .credits import can_afford
 
 
 class GenerationListCreateView(generics.ListCreateAPIView):
@@ -22,6 +23,11 @@ class GenerationListCreateView(generics.ListCreateAPIView):
         return qs.filter(kind=kind) if kind else qs
 
     def create(self, request, *args, **kwargs):
+        if not can_afford(request.user, "image"):
+            return Response(
+                {"error": "Insufficient credits to generate an image. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
         serializer = CreateImageJobSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
@@ -59,16 +65,31 @@ class VideoGenerationCreateView(generics.CreateAPIView):
     serializer_class = CreateVideoJobSerializer
 
     def create(self, request, *args, **kwargs):
+        if not can_afford(request.user, "video"):
+            return Response(
+                {"error": "Insufficient credits to generate a video. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
         serializer = CreateVideoJobSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data
 
         params = {
             "prompt": d.get("prompt", ""),
-            "source": str(d["source"]),
+            "source": str(d["source"]) if d.get("source") else None,
             "end_frame": str(d["end_frame"]) if d.get("end_frame") else None,
-            "quality": d.get("quality", "standard"),
+            "quality": d.get("quality"),
             "seed": d.get("seed"),
+            "model_type": d.get("model_type", "dop"),
+            "motion_id": d.get("motion_id"),
+            "motion_strength": d.get("motion_strength"),
+            "resolution": d.get("resolution"),
+            "aspect_ratio": d.get("aspect_ratio"),
+            "duration": d.get("duration"),
+            "model": d.get("model"),
+            "negative_prompt": d.get("negative_prompt"),
+            "enhance_prompt": d.get("enhance_prompt", False),
+            "check_nsfw": d.get("check_nsfw", True),
         }
         job = GenerationJob.objects.create(
             user=request.user,
@@ -93,6 +114,11 @@ class TTSGenerationCreateView(generics.CreateAPIView):
     serializer_class = CreateTTSJobSerializer
 
     def create(self, request, *args, **kwargs):
+        if not can_afford(request.user, "tts"):
+            return Response(
+                {"error": "Insufficient credits to generate text-to-speech. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
         serializer = CreateTTSJobSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         d = serializer.validated_data

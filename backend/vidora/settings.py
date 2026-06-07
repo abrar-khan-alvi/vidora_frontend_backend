@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "prompton",
     "studio",
     "generation",
+    "billing",
 ]
 
 MIDDLEWARE = [
@@ -150,7 +151,7 @@ HIGGSFIELD_MAX_REFERENCES = int(os.getenv("HIGGSFIELD_MAX_REFERENCES", "4"))
 # frame, or <base>/<quality>/first-last-frame when an end frame is supplied.
 # quality in {lite, standard, turbo}. Kling / Minimax Hailuo are also enabled alternatives.
 HIGGSFIELD_VIDEO_APP_BASE = os.getenv("HIGGSFIELD_VIDEO_APP_BASE", "higgsfield-ai/dop")
-HIGGSFIELD_VIDEO_QUALITY = os.getenv("HIGGSFIELD_VIDEO_QUALITY", "standard")
+HIGGSFIELD_VIDEO_QUALITY = os.getenv("HIGGSFIELD_VIDEO_QUALITY", "turbo")
 HIGGSFIELD_VIDEO_FLF_SUFFIX = os.getenv("HIGGSFIELD_VIDEO_FLF_SUFFIX", "first-last-frame")
 
 # --- ElevenLabs (VoiceSync AI: voice cloning + TTS) -------------------------
@@ -180,3 +181,9 @@ CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
 CELERY_TASK_TRACK_STARTED = True
+
+# --- Stripe (Billing & Subscriptions) ---------------------------------------
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+

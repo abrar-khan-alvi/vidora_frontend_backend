@@ -12,3 +12,8 @@ def balance(user) -> int:
 
 def record(user, delta: int, reason: str, ref_job=None):
     CreditLedger.objects.create(user=user, delta=delta, reason=reason, ref_job=ref_job)
+
+
+def can_afford(user, kind: str) -> bool:
+    # Development bypass: Always allow generations
+    return True

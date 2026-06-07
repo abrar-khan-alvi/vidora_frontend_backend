@@ -8,6 +8,7 @@ import { VoiceSyncContent } from './pages/VoiceSync';
 import { SubscriptionsContent } from './pages/Subscriptions';
 import { HistoryLogsContent } from './pages/HistoryLogs';
 import { AccountSettingsContent } from './pages/AccountSettings';
+import { ReferencesContent } from './pages/References';
 
 export const DashboardScreen = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export const DashboardScreen = () => {
     switch (activeTab) {
       case 'prompton': return <PromptonContent />;
       case 'image-generation': return <ImageGenerationContent />;
+      case 'references': return <ReferencesContent />;
       case 'video-generation': return <VideoGenerationContent />;
       case 'voicesync': return <VoiceSyncContent />;
       case 'subscriptions': return <SubscriptionsContent />;
