@@ -270,7 +270,7 @@ export const VoiceSyncContent = () => {
               </div>
             </div>
             <div>
-              <h1 className="text-[26px] font-bold text-white tracking-tight leading-tight">VoiceSync AI</h1>
+              <h1 className="text-[26px] font-bold text-white tracking-tight leading-tight">Give It A Voice</h1>
               <p className="text-[#8A8A90] text-[13px] mt-0.5">Create human-like speech in a cloned voice or select a built-in voice.</p>
             </div>
           </div>
@@ -582,7 +582,7 @@ export const VoiceSyncContent = () => {
           </div>
         </div>
         <div>
-          <h1 className="text-[26px] font-bold tracking-tight leading-tight bg-gradient-to-r from-white via-white to-[#C9B8FF] bg-clip-text text-transparent">New Speech</h1>
+          <h1 className="text-[26px] font-bold tracking-tight leading-tight bg-gradient-to-r from-white via-white to-[#C9B8FF] bg-clip-text text-transparent">Give It A Voice</h1>
           <p className="text-[#8A8A90] text-[13px]">Type a script and generate a voiceover in your cloned voice.</p>
         </div>
       </div>

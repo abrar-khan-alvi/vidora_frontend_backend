@@ -160,8 +160,15 @@ def generate_video(
         arguments["seed"] = seed
 
     if model_type == "dop":
-        quality = kwargs.get("quality") or settings.HIGGSFIELD_VIDEO_QUALITY
-        mode = f"{quality}/{settings.HIGGSFIELD_VIDEO_FLF_SUFFIX}" if end_image_url else quality
+        # DoP's app_model_slug must be one of lite/standard/turbo. Normalize the
+        # UI's values (dop-lite / dop-preview / dop-turbo) to the API enum.
+        raw = (kwargs.get("quality") or settings.HIGGSFIELD_VIDEO_QUALITY or "standard")
+        q = str(raw).replace("dop-", "").strip().lower()
+        if q == "preview":
+            q = "standard"
+        if q not in ("lite", "standard", "turbo"):
+            q = "standard"
+        mode = f"{q}/{settings.HIGGSFIELD_VIDEO_FLF_SUFFIX}" if end_image_url else q
         app = f"{settings.HIGGSFIELD_VIDEO_APP_BASE}/{mode}"
         
         arguments["image_url"] = image_url
@@ -177,12 +184,14 @@ def generate_video(
             arguments["check_nsfw"] = kwargs["check_nsfw"]
 
     elif model_type == "seedance":
-        # Automatically select text-to-video or image-to-video app
+        # Per the Higgsfield API docs: ByteDance Seedance v1 Pro, field `image_url`.
+        # (Auto-selects image-to-video vs text-to-video.) Note: this model must be
+        # enabled on the API key — otherwise the platform returns 404 "Model not found".
         if image_url:
-            app = "bytedance/seedance/v2/image-to-video"
-            arguments["input_image"] = image_url
+            app = "bytedance/seedance/v1/pro/image-to-video"
+            arguments["image_url"] = image_url
         else:
-            app = "bytedance/seedance/v2/text-to-video"
+            app = "bytedance/seedance/v1/pro/text-to-video"
 
         if "resolution" in kwargs:
             arguments["resolution"] = kwargs["resolution"]
@@ -195,9 +204,10 @@ def generate_video(
 
     elif model_type == "kling":
         app = kwargs.get("model") or "kling-video/v2.6/pro/image-to-video"
-        
+
+        # Kling's image-to-video requires `image_url` (not `start_image_url`).
         if image_url:
-            arguments["start_image_url"] = image_url
+            arguments["image_url"] = image_url
         if end_image_url:
             arguments["end_image_url"] = end_image_url
         if "duration" in kwargs:
@@ -212,7 +222,17 @@ def generate_video(
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
 
-    result = higgsfield_client.subscribe(app, arguments)
+    try:
+        result = higgsfield_client.subscribe(app, arguments)
+    except Exception as exc:
+        # A "model not found" means this model slug isn't enabled on the API key.
+        if "not found" in str(exc).lower() or "404" in str(exc):
+            raise RuntimeError(
+                f"The '{model_type}' model isn’t enabled on this Higgsfield API key "
+                f"(slug: {app}). DoP and Kling are available; ask Higgsfield to enable "
+                f"this model for the key, or pick another model."
+            ) from exc
+        raise
     return _extract_video_urls(result)
 
 

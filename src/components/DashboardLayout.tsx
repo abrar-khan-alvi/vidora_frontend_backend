@@ -25,11 +25,11 @@ const HISTORY_SEEN_KEY = 'vidora:history:lastSeen';
 
 const navItems = [
   { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
-  { id: 'prompton', icon: Sparkles, label: 'Prompton' },
-  { id: 'image-generation', icon: ImagePlus, label: 'Image Generation' },
-  { id: 'references', icon: Smile, label: 'Custom References' },
-  { id: 'video-generation', icon: PlaySquare, label: 'Video Generation' },
-  { id: 'voicesync', icon: Mic, label: 'VoiceSync AI' },
+  { id: 'prompton', icon: Sparkles, label: 'Your Assistant' },
+  { id: 'references', icon: Smile, label: 'Create Your Identity' },
+  { id: 'image-generation', icon: ImagePlus, label: 'Bring To Life (Image)' },
+  { id: 'video-generation', icon: PlaySquare, label: 'Bring To Life (Video)' },
+  { id: 'voicesync', icon: Mic, label: 'Give It A Voice' },
   { id: 'subscriptions', icon: RefreshCw, label: 'Subscriptions' },
   { id: 'history', icon: History, label: 'History logs' },
 ];

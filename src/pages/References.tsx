@@ -61,8 +61,8 @@ export const ReferencesContent = () => {
             <Smile size={22} className="text-[#9758FF]" />
           </div>
           <div>
-            <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Custom References</h1>
-            <p className="text-[#7A7A80] text-[13px] mt-0.5">Train unique faces, characters, or styles to guide your generations.</p>
+            <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Create Your Identity</h1>
+            <p className="text-[#7A7A80] text-[13px] mt-0.5">Train unique faces, characters, or styles to keep your content personalized.</p>
           </div>
         </div>
 

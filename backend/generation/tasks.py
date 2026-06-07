@@ -155,7 +155,7 @@ def run_video_generation(job_id: str):
         if model_type == "dop" and not image_url:
             raise RuntimeError("Source image is required for DoP video generation.")
             
-        exclude_keys = {"source", "end_frame", "prompt", "seed"}
+        exclude_keys = {"source", "end_frame", "prompt", "seed", "model_type"}
         extra_args = {k: v for k, v in params.items() if k not in exclude_keys}
 
         urls = higgsfield.generate_video(

@@ -173,7 +173,7 @@ export const ImageGenerationContent = () => {
               <ImagePlus size={20} className="text-[#9758FF]" />
             </div>
             <div>
-              <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Image Generation</h1>
+              <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Bring To Life (Image)</h1>
               <p className="text-[#7A7A80] text-[13px]">Your generated images. Start a new one anytime.</p>
             </div>
           </div>
@@ -334,7 +334,7 @@ export const ImageGenerationContent = () => {
           </div>
         </div>
         <div>
-          <h1 className="text-[26px] font-bold tracking-tight leading-tight bg-gradient-to-r from-white via-white to-[#C9B8FF] bg-clip-text text-transparent">New Image</h1>
+          <h1 className="text-[26px] font-bold tracking-tight leading-tight bg-gradient-to-r from-white via-white to-[#C9B8FF] bg-clip-text text-transparent">Bring To Life (Image)</h1>
           <p className="text-[#8A8A90] text-[13px]">Turn a prompt into a stunning image — optionally guided by a trained reference.</p>
         </div>
       </div>

@@ -261,7 +261,7 @@ export const VideoGenerationContent = () => {
               <Video size={20} className="text-[#9758FF]" />
             </div>
             <div>
-              <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Video Generation</h1>
+              <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Bring To Life (Video)</h1>
               <p className="text-[#7A7A80] text-[13px]">Your generated videos. Start a new one anytime.</p>
             </div>
           </div>
@@ -429,7 +429,7 @@ export const VideoGenerationContent = () => {
           <Video size={20} className="text-[#9758FF]" />
         </div>
         <div>
-          <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">New Video</h1>
+          <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Bring To Life (Video)</h1>
           <p className="text-[#7A7A80] text-[13px]">Select a model and construct your generation parameters.</p>
         </div>
       </div>
@@ -787,7 +787,7 @@ export const VideoGenerationContent = () => {
 
                   // Helper to get Lucide icon for card header
                   const getIcon = () => {
-                    const label = p.label.toLowerCase();
+                    const label = (p?.label || '').toLowerCase();
                     if (label.includes('none') || label.includes('auto')) return <Sparkles size={14} />;
                     if (label.includes('arc left')) return <RotateCcw size={14} />;
                     if (label.includes('arc right')) return <RotateCw size={14} />;

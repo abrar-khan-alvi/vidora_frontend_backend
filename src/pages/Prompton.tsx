@@ -448,7 +448,7 @@ export const PromptonContent = () => {
         )}
       </div>
       <p className="text-[11px] text-[#5A5A60] mt-3.5 text-center font-medium">
-        Prompton is a personal creative assistant and can make mistakes.
+        Your Assistant is here to support your creative process and can make mistakes.
       </p>
     </div>
   );
@@ -552,10 +552,10 @@ export const PromptonContent = () => {
               </div>
               <div>
                 <h2 className="text-[28px] font-bold text-white tracking-tight leading-tight">
-                  Give life to your ideas
+                  Your Assistant
                 </h2>
                 <p className="text-[#8A8A90] text-[13.5px] mt-2 max-w-[460px] leading-relaxed">
-                  Prompton is your dedicated co-creator. Draft scripts, design visuals, or map out directions for your studio projects.
+                  Your Personal Creator Assistant is here to guide your 6-Step Creator Flow. Draft scripts, refine visual prompts, outline scenes, or polish copy to make it go viral.
                 </p>
               </div>
             </div>

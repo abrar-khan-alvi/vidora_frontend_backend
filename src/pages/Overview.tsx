@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   ImagePlus, Video, Mic, Sparkles, ArrowRight, Zap, Layers, Play,
-  Plus, Flame, Clock, Wand2, ChevronRight,
+  Plus, Flame, Clock, Wand2, ChevronRight, Smile, Globe,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { generationApi, type GenerationJob } from '../lib/api/generation';
@@ -16,11 +16,13 @@ const KIND = {
   audio: { label: 'Voiceover', plural: 'Voiceovers', icon: Mic, color: '#4ADE80', tab: 'voicesync' },
 } as const;
 
-const ACTIONS = [
-  { tab: 'image-generation', icon: ImagePlus, title: 'Create Image', desc: 'Turn a prompt into a visual', grad: 'from-[#9758FF] to-[#C24DFF]' },
-  { tab: 'video-generation', icon: Video, title: 'Create Video', desc: 'Animate an image into motion', grad: 'from-[#6D28D9] to-[#2563EB]' },
-  { tab: 'voicesync', icon: Mic, title: 'Voiceover', desc: 'Speak any script aloud', grad: 'from-[#0EA5E9] to-[#22C55E]' },
-  { tab: 'prompton', icon: Sparkles, title: 'Ask Prompton', desc: 'Brainstorm with your AI', grad: 'from-[#DB2777] to-[#9758FF]' },
+const STEPS = [
+  { step: 'Step 1', tab: 'prompton', icon: Sparkles, title: 'Your Assistant', desc: 'Brainstorm concepts & scripts', grad: 'from-[#9758FF] to-[#C24DFF]' },
+  { step: 'Step 2', tab: 'references', icon: Smile, title: 'Create Your Identity', desc: 'Train custom characters & faces', grad: 'from-[#6D28D9] to-[#2563EB]' },
+  { step: 'Step 3', tab: 'image-generation', icon: ImagePlus, title: 'Bring To Life (Image)', desc: 'Generate premium custom images', grad: 'from-[#DB2777] to-[#9758FF]' },
+  { step: 'Step 4', tab: 'video-generation', icon: Video, title: 'Bring To Life (Video)', desc: 'Animate pictures into high-end clips', grad: 'from-[#0EA5E9] to-[#2563EB]' },
+  { step: 'Step 5', tab: 'voicesync', icon: Mic, title: 'Give It A Voice', desc: 'Add studio-grade voiceovers', grad: 'from-[#10B981] to-[#0EA5E9]' },
+  { step: 'Step 6', tab: 'history', icon: Globe, title: 'Publish Everywhere', desc: 'Check history and export to socials', grad: 'from-[#F59E0B] to-[#EF4444]' },
 ];
 
 function relativeTime(iso: string): string {
@@ -131,27 +133,36 @@ export const OverviewContent = () => {
         </div>
       </motion.div>
 
-      {/* Quick actions */}
-      <motion.div {...fade(1)} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">
-        {ACTIONS.map((a) => (
-          <button
-            key={a.tab}
-            onClick={() => go(a.tab)}
-            className="group relative text-left rounded-2xl p-[1px] bg-gradient-to-br from-white/[0.08] to-transparent hover:from-[#9758FF]/40 transition-all"
-          >
-            <div className="rounded-2xl bg-[#131316] h-full p-5 flex flex-col min-h-[150px] justify-between group-hover:-translate-y-0.5 transition-transform">
-              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${a.grad} flex items-center justify-center shadow-lg`}>
-                <a.icon size={21} className="text-white" />
+      {/* 6-Step Creator Flow */}
+      <div className="mb-8">
+        <h2 className="text-[16px] font-bold text-white mb-4 flex items-center gap-2">
+          <Wand2 size={16} className="text-[#9758FF]" />
+          <span>6-Step Creator Flow</span>
+          <span className="text-[#5A5A60] font-normal text-[13px]">— Your Personal Creator Assistant journey</span>
+        </h2>
+        <motion.div {...fade(1)} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {STEPS.map((s) => (
+            <button
+              key={s.tab}
+              onClick={() => go(s.tab)}
+              className="group relative text-left rounded-2xl p-[1px] bg-gradient-to-br from-white/[0.08] to-transparent hover:from-[#9758FF]/40 transition-all"
+            >
+              <div className="rounded-2xl bg-[#131316] h-full p-4 flex flex-col min-h-[160px] justify-between group-hover:-translate-y-0.5 transition-transform">
+                <div className="flex items-center justify-between">
+                  <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${s.grad} flex items-center justify-center shadow-lg`}>
+                    <s.icon size={18} className="text-white" />
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-[#5A5A60] uppercase">{s.step}</span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-white font-bold text-[13.5px] group-hover:text-[#9758FF] transition-colors">{s.title}</h3>
+                  <p className="text-[#7A7A80] text-[11.5px] mt-1 leading-snug">{s.desc}</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-white font-semibold text-[14.5px]">{a.title}</h3>
-                <p className="text-[#7A7A80] text-[12.5px] mt-0.5 leading-snug">{a.desc}</p>
-              </div>
-              <ArrowRight size={16} className="absolute top-5 right-5 text-[#5A5A60] group-hover:text-[#9758FF] group-hover:translate-x-0.5 transition-all" />
-            </div>
-          </button>
-        ))}
-      </motion.div>
+            </button>
+          ))}
+        </motion.div>
+      </div>
 
       {/* Stats */}
       <motion.div {...fade(2)} className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-7">

@@ -99,8 +99,9 @@ class MeView(generics.RetrieveUpdateAPIView):
     def update(self, request, *args, **kwargs):
         kwargs["partial"] = True
         super().update(request, *args, **kwargs)
-        # Always return the full user representation.
-        return Response(UserSerializer(self.get_object()).data)
+        # Always return the full user representation (with request context so the
+        # avatar URL is absolute).
+        return Response(UserSerializer(self.get_object(), context={"request": request}).data)
 
 
 class ChangePasswordView(APIView):

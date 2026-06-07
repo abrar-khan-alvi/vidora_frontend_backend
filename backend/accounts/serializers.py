@@ -7,10 +7,19 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ("id", "email", "display_name", "avatar", "is_active", "date_joined")
         read_only_fields = fields
+
+    def get_avatar(self, obj):
+        if not obj.avatar:
+            return None
+        request = self.context.get("request")
+        # Absolute URL so the avatar loads from the API host, not the SPA origin.
+        return request.build_absolute_uri(obj.avatar.url) if request else obj.avatar.url
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -95,5 +104,5 @@ class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     def validate(self, attrs):
         data = super().validate(attrs)
-        data["user"] = UserSerializer(self.user).data
+        data["user"] = UserSerializer(self.user, context=self.context).data
         return data
