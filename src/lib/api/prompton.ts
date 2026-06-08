@@ -9,11 +9,17 @@ export interface ConversationSummary {
   updated_at: string;
 }
 
+export interface MessageAttachment {
+  id: string;
+  url: string;
+}
+
 export interface PromptonMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   created_at: string;
+  attachments?: MessageAttachment[];
 }
 
 export interface ConversationDetail extends ConversationSummary {
@@ -49,6 +55,7 @@ export async function streamMessage(
   conversationId: string,
   content: string,
   handlers: StreamHandlers,
+  attachmentIds: string[] = [],
 ): Promise<void> {
   const url = `${API_BASE_URL}/prompton/conversations/${conversationId}/stream/`;
 
@@ -59,7 +66,7 @@ export async function streamMessage(
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, attachment_ids: attachmentIds }),
       signal: handlers.signal,
     });
 

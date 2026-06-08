@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ImagePlus, Sparkles, Download, RefreshCw, AlertCircle, Plus, Check, ChevronLeft, Loader2, Palette, X, ChevronDown, Sliders, Smile, Clock,
+  ImagePlus, Sparkles, Download, RefreshCw, AlertCircle, Plus, Check, ChevronLeft, Loader2, Palette, X, ChevronDown, Sliders, Smile, Clock, Film, ArrowRight,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
@@ -11,6 +11,7 @@ import {
 import { referenceApi, type TrainedReference } from '../lib/api/studio';
 import { StylePickerModal } from '../components/StylePickerModal';
 import { useToast } from '../components/Toast';
+import { useCreationFlow } from '../lib/creationFlow';
 
 const ASPECTS = ['1:1', '16:9', '9:16', '4:3', '3:4'];
 
@@ -38,6 +39,7 @@ async function downloadImage(url: string, name: string) {
 export const ImageGenerationContent = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const flow = useCreationFlow();
   const [prompt, setPrompt] = useState('');
   const [aspect, setAspect] = useState('1:1');
   const [job, setJob] = useState<GenerationJob | null>(null);
@@ -109,6 +111,26 @@ export const ImageGenerationContent = () => {
   };
 
   const isWorking = job && ['queued', 'submitted', 'processing'].includes(job.status);
+
+  // --- Assistant → Image handoff: prefill the prompt and auto-generate -------
+  const [autoRunPrompt, setAutoRunPrompt] = useState<string | null>(null);
+  useEffect(() => {
+    const h = flow.consumeImage();
+    if (!h) return;
+    setPrompt(h.prompt);
+    if (h.aspect) setAspect(h.aspect);
+    setView('create');
+    setAutoRunPrompt(h.prompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Fire the generation once the prefilled state has committed.
+  useEffect(() => {
+    if (autoRunPrompt !== null && !running) {
+      run(autoRunPrompt);
+      setAutoRunPrompt(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRunPrompt]);
 
   // Generation feedback states
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -297,9 +319,23 @@ export const ImageGenerationContent = () => {
 
             {/* Actions group */}
             <div className="flex flex-col gap-3">
+              {detailJob.outputs[0] && (
+                <button
+                  onClick={() => flow.startVideo({
+                    imagePrompt: detailJob.prompt,
+                    sourceAssetId: detailJob.outputs[0].id,
+                    sourceUrl: detailJob.outputs[0].url,
+                    modelType: 'dop',
+                  })}
+                  className="w-full group bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] hover:shadow-[0_8px_25px_rgba(106,57,196,0.35)] text-white py-3.5 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                >
+                  <Film size={16} /> Animate this into a video
+                  <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+              )}
               <button
                 onClick={() => reusePrompt(detailJob)}
-                className="w-full bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] hover:shadow-[0_8px_25px_rgba(106,57,196,0.3)] text-white py-3.5 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[#C9A8FF] py-3.5 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
               >
                 <RefreshCw size={16} /> Make a variation
               </button>
@@ -639,6 +675,19 @@ export const ImageGenerationContent = () => {
                     </div>
                   ))}
                 </div>
+                {/* Ecosystem nudge: carry this image into the video studio */}
+                <button
+                  onClick={() => flow.startVideo({
+                    imagePrompt: job.prompt,
+                    sourceAssetId: job.outputs[0].id,
+                    sourceUrl: job.outputs[0].url,
+                    modelType: 'dop',
+                  })}
+                  className="w-full group bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] hover:shadow-[0_8px_25px_rgba(106,57,196,0.35)] text-white py-3.5 rounded-xl font-bold text-[13.5px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                >
+                  <Film size={15} /> Animate this into a video
+                  <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                </button>
                 <button onClick={() => run(job.prompt, Math.floor(Math.random() * 1_000_000_000))} disabled={running}
                   className="w-full bg-[#1B1B21] hover:bg-[#24242B] border border-white/[0.05] text-[#C9A8FF] py-3.5 rounded-xl font-bold text-[13px] transition-all flex items-center justify-center gap-2"
                 >

@@ -30,7 +30,10 @@ class Message(models.Model):
         Conversation, on_delete=models.CASCADE, related_name="messages"
     )
     role = models.CharField(max_length=16, choices=Role.choices)
-    content = models.TextField()
+    content = models.TextField(blank=True)
+    # Uploaded image Asset ids attached to this (user) message, so the assistant
+    # can "see" a product/reference. Stored as a list of UUID strings.
+    attachments = models.JSONField(default=list, blank=True)
     # Token accounting (filled for assistant messages).
     input_tokens = models.IntegerField(default=0)
     output_tokens = models.IntegerField(default=0)

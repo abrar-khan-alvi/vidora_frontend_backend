@@ -16,6 +16,7 @@ import {
   LogOut,
   Zap,
   Smile,
+  Clapperboard,
 } from 'lucide-react';
 import { Logo } from './ui';
 import { useAuth } from '../auth/AuthContext';
@@ -29,6 +30,7 @@ const navItems = [
   { id: 'references', icon: Smile, label: 'Create Your Identity' },
   { id: 'image-generation', icon: ImagePlus, label: 'Bring To Life (Image)' },
   { id: 'video-generation', icon: PlaySquare, label: 'Bring To Life (Video)' },
+  { id: 'ugc', icon: Clapperboard, label: 'UGC Studio' },
   { id: 'voicesync', icon: Mic, label: 'Give It A Voice' },
   { id: 'subscriptions', icon: RefreshCw, label: 'Subscriptions' },
   { id: 'history', icon: History, label: 'History logs' },

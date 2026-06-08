@@ -62,6 +62,39 @@ def text_to_speech(voice_id: str, text: str, model_id: str | None = None) -> byt
     return resp.content
 
 
+def text_to_speech_wav(voice_id: str, text: str, model_id: str | None = None) -> bytes:
+    """Synthesize `text` and return WAV (PCM) bytes — for providers that require
+    `audio/x-wav` (e.g. Higgsfield Speak). ElevenLabs returns raw PCM when asked
+    for `pcm_24000`; we wrap it in a WAV container with the standard `wave` module
+    (no ffmpeg needed). 24 kHz, 16-bit, mono.
+    """
+    import io
+    import wave
+
+    rate = 24000
+    body = {
+        "text": text,
+        "model_id": model_id or settings.ELEVENLABS_TTS_MODEL,
+    }
+    resp = httpx.post(
+        f"{_base()}/v1/text-to-speech/{voice_id}",
+        headers=_headers({"Content-Type": "application/json"}),
+        params={"output_format": f"pcm_{rate}"},
+        json=body,
+        timeout=180,
+    )
+    resp.raise_for_status()
+    pcm = resp.content
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)  # 16-bit
+        wav.setframerate(rate)
+        wav.writeframes(pcm)
+    return buf.getvalue()
+
+
 def delete_voice(voice_id: str) -> None:
     """Delete a cloned voice at the provider. Best-effort (ignores 404)."""
     resp = httpx.delete(

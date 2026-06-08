@@ -62,6 +62,23 @@ export interface CreateVideoParams {
   check_nsfw?: boolean;
 }
 
+export interface CreateUGCParams {
+  /** Avatar image Asset id (uploaded or picked). */
+  image: string;
+  /** The script to be spoken. */
+  text: string;
+  /** A ready cloned Voice id… */
+  voice?: string | null;
+  /** …or a built-in ElevenLabs stock voice id. */
+  stock_voice_id?: string | null;
+  /** Higgsfield Speak `prompt` — the scene/expression description. */
+  scenario?: string;
+  quality?: 'high' | 'mid';
+  duration?: 5 | 10 | 15;
+  seed?: number | null;
+  enhance_prompt?: boolean;
+}
+
 export interface CreateTTSParams {
   /** A ready cloned Voice id to speak in. */
   voice?: string | null;
@@ -75,14 +92,22 @@ export const generationApi = {
     apiFetch<GenerationJob>('/generations/', { method: 'POST', auth: true, body: params }),
   createVideo: (params: CreateVideoParams) =>
     apiFetch<GenerationJob>('/generations/video/', { method: 'POST', auth: true, body: params }),
+  createUGC: (params: CreateUGCParams) =>
+    apiFetch<GenerationJob>('/generations/ugc/', { method: 'POST', auth: true, body: params }),
   createTTS: (params: CreateTTSParams) =>
     apiFetch<GenerationJob>('/generations/tts/', { method: 'POST', auth: true, body: params }),
   get: (id: string) => apiFetch<GenerationJob>(`/generations/${id}/`, { auth: true }),
   list: () => apiFetch<GenerationJob[]>('/generations/?kind=image', { auth: true }),
   listAll: () => apiFetch<GenerationJob[]>('/generations/', { auth: true }),
   listVideos: () => apiFetch<GenerationJob[]>('/generations/?kind=video', { auth: true }),
+  listUGC: () => apiFetch<GenerationJob[]>('/generations/?kind=ugc', { auth: true }),
   listAudio: () => apiFetch<GenerationJob[]>('/generations/?kind=audio', { auth: true }),
   listStyles: () => apiFetch<StylePreset[]>('/generations/styles/', { auth: true }),
+  /** Draft a motion (video) prompt from a still-image prompt — for image → video. */
+  suggestMotionPrompt: (image_prompt: string) =>
+    apiFetch<{ prompt: string }>('/generations/motion-prompt/', {
+      method: 'POST', auth: true, body: { image_prompt },
+    }),
 };
 
 const TERMINAL: JobStatus[] = ['succeeded', 'failed', 'canceled'];

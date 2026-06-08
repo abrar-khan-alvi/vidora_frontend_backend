@@ -8,6 +8,7 @@ from .models import GenerationJob
 from .serializers import (
     CreateImageJobSerializer,
     CreateTTSJobSerializer,
+    CreateUGCJobSerializer,
     CreateVideoJobSerializer,
     GenerationJobSerializer,
 )
@@ -108,6 +109,52 @@ class VideoGenerationCreateView(generics.CreateAPIView):
         )
 
 
+class UGCGenerationCreateView(generics.CreateAPIView):
+    """Create a UGC talking-avatar video job (Higgsfield Speak)."""
+
+    serializer_class = CreateUGCJobSerializer
+
+    def create(self, request, *args, **kwargs):
+        if not can_afford(request.user, "ugc"):
+            return Response(
+                {"error": "Insufficient credits to generate a UGC video. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+        serializer = CreateUGCJobSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        params = {
+            "image": str(d["image"]),
+            "text": d["text"],
+            "voice": str(d["voice"]) if d.get("voice") else None,
+            "stock_voice_id": d.get("stock_voice_id") or None,
+            "scenario": d.get("scenario", ""),
+            "quality": d.get("quality", "high"),
+            "duration": d.get("duration", 5),
+            "seed": d.get("seed"),
+            "enhance_prompt": d.get("enhance_prompt", True),
+            "model_type": "speak",
+            # Display text for history cards mirrors image/video jobs.
+            "prompt": d["text"],
+        }
+        job = GenerationJob.objects.create(
+            user=request.user,
+            kind=GenerationJob.Kind.UGC,
+            provider="higgsfield",
+            status=GenerationJob.Status.QUEUED,
+            input_params=params,
+        )
+
+        from .tasks import run_ugc_generation
+        run_ugc_generation.delay(str(job.id))
+
+        return Response(
+            GenerationJobSerializer(job, context={"request": request}).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
 class TTSGenerationCreateView(generics.CreateAPIView):
     """Create a text-to-speech job (VoiceSync AI). Speaks `text` in a cloned voice."""
 
@@ -165,6 +212,31 @@ class StylePresetListView(APIView):
                     status=status.HTTP_502_BAD_GATEWAY,
                 )
         return Response(_STYLE_CACHE)
+
+
+class MotionPromptView(APIView):
+    """Draft a short image-to-video motion prompt from a still-image prompt.
+
+    Used by the image → video handoff so the user lands in the video studio with
+    a motion-oriented prompt (not the static image description)."""
+
+    def post(self, request, *args, **kwargs):
+        image_prompt = (request.data.get("image_prompt") or "").strip()
+        if not image_prompt:
+            return Response(
+                {"detail": "image_prompt is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        from prompton.provider import suggest_motion_prompt
+
+        try:
+            prompt = suggest_motion_prompt(image_prompt)
+        except Exception as exc:
+            return Response(
+                {"detail": f"Could not draft a motion prompt: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response({"prompt": prompt})
 
 
 class GenerationDetailView(generics.RetrieveDestroyAPIView):

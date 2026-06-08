@@ -67,6 +67,30 @@ class CreateVideoJobSerializer(serializers.Serializer):
     check_nsfw = serializers.BooleanField(required=False, default=True)
 
 
+class CreateUGCJobSerializer(serializers.Serializer):
+    """Create a UGC talking-avatar video (Higgsfield Speak).
+
+    Combines an avatar image + a voiceover (script spoken in a cloned/stock voice)
+    + a scene prompt and Speak's parameters.
+    """
+
+    image = serializers.UUIDField()  # avatar image Asset id
+    text = serializers.CharField(max_length=5000)  # the script to speak
+    voice = serializers.UUIDField(required=False, allow_null=True)  # cloned voice
+    stock_voice_id = serializers.CharField(required=False, allow_blank=True)  # stock voice
+    # Speak's own `prompt` — the scene/expression description.
+    scenario = serializers.CharField(required=False, allow_blank=True, default="")
+    quality = serializers.ChoiceField(choices=["high", "mid"], required=False, default="high")
+    duration = serializers.ChoiceField(choices=[5, 10, 15], required=False, default=5)
+    seed = serializers.IntegerField(required=False, allow_null=True)
+    enhance_prompt = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, data):
+        if not data.get("voice") and not data.get("stock_voice_id"):
+            raise serializers.ValidationError("Select a voice (cloned or built-in).")
+        return data
+
+
 class CreateTTSJobSerializer(serializers.Serializer):
     """Generate speech (TTS) in either a cloned voice or a built-in stock voice."""
 

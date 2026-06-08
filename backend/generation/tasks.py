@@ -196,6 +196,84 @@ def run_video_generation(job_id: str):
     credits.record(job.user, -cost, "video_generation", job.id)
 
 
+@shared_task
+def run_ugc_generation(job_id: str):
+    """Produce a talking-avatar UGC video: voiceover (ElevenLabs WAV) → Higgsfield
+    Speak lip-syncs it to the avatar image → re-host the output video."""
+    try:
+        job = GenerationJob.objects.get(id=job_id)
+    except GenerationJob.DoesNotExist:
+        return
+    if job.status in GenerationJob.TERMINAL:
+        return
+
+    job.status = GenerationJob.Status.SUBMITTED
+    job.submitted_at = timezone.now()
+    job.attempts += 1
+    job.save(update_fields=["status", "submitted_at", "attempts"])
+
+    params = job.input_params
+    try:
+        job.status = GenerationJob.Status.PROCESSING
+        job.save(update_fields=["status"])
+
+        image_url = _frame_url(job, "image")
+        if not image_url:
+            raise RuntimeError("Avatar image is required.")
+
+        text = (params.get("text") or "").strip()
+        if not text:
+            raise RuntimeError("No script to speak.")
+
+        # 1) Voiceover as WAV (Speak requires audio/x-wav), 2) host it on Higgsfield.
+        provider_voice_id = _resolve_voice_id(job)
+        wav = elevenlabs.text_to_speech_wav(provider_voice_id, text)
+        audio_url = higgsfield.upload_reference(wav, "audio/x-wav")
+
+        scenario = (params.get("scenario") or "").strip() or (
+            "A person speaking naturally and expressively to the camera, "
+            "subtle head movement, warm and engaging delivery."
+        )
+
+        urls = higgsfield.generate_speak(
+            image_url=image_url,
+            audio_url=audio_url,
+            prompt=scenario,
+            quality=params.get("quality"),
+            duration=params.get("duration"),
+            seed=params.get("seed"),
+            enhance_prompt=params.get("enhance_prompt"),
+        )
+    except Exception as exc:
+        job.status = GenerationJob.Status.FAILED
+        job.error = str(exc)[:1000]
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "error", "completed_at"])
+        return
+
+    asset_ids = []
+    for url in urls:
+        try:
+            asset_ids.append(str(_download_asset(url, job, Asset.Type.VIDEO).id))
+        except Exception:
+            continue
+
+    if not asset_ids:
+        job.status = GenerationJob.Status.FAILED
+        job.error = "No output video could be saved."
+        job.completed_at = timezone.now()
+        job.save(update_fields=["status", "error", "completed_at"])
+        return
+
+    cost = credits.COST["ugc"]
+    job.output_asset_ids = asset_ids
+    job.status = GenerationJob.Status.SUCCEEDED
+    job.credits_cost = cost
+    job.completed_at = timezone.now()
+    job.save(update_fields=["output_asset_ids", "status", "credits_cost", "completed_at"])
+    credits.record(job.user, -cost, "ugc_generation", job.id)
+
+
 def _resolve_voice_id(job: GenerationJob) -> str:
     """Resolve the TTS job to a provider voice_id — either a cloned Voice (by our
     id) or a built-in stock voice (ElevenLabs premade id passed through)."""

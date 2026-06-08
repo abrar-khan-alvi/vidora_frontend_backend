@@ -1,9 +1,11 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { DashboardLayout } from './components/DashboardLayout';
+import { CreationFlowProvider } from './lib/creationFlow';
 import { OverviewContent } from './pages/Overview';
 import { PromptonContent } from './pages/Prompton';
 import { ImageGenerationContent } from './pages/ImageGeneration';
 import { VideoGenerationContent } from './pages/VideoGeneration';
+import { UGCStudioContent } from './pages/UGCStudio';
 import { VoiceSyncContent } from './pages/VoiceSync';
 import { SubscriptionsContent } from './pages/Subscriptions';
 import { HistoryLogsContent } from './pages/HistoryLogs';
@@ -23,6 +25,7 @@ export const DashboardScreen = () => {
       case 'image-generation': return <ImageGenerationContent />;
       case 'references': return <ReferencesContent />;
       case 'video-generation': return <VideoGenerationContent />;
+      case 'ugc': return <UGCStudioContent />;
       case 'voicesync': return <VoiceSyncContent />;
       case 'subscriptions': return <SubscriptionsContent />;
       case 'history': return <HistoryLogsContent />;
@@ -33,11 +36,13 @@ export const DashboardScreen = () => {
   };
 
   return (
-    <DashboardLayout
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-    >
-      {renderContent()}
-    </DashboardLayout>
+    <CreationFlowProvider>
+      <DashboardLayout
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      >
+        {renderContent()}
+      </DashboardLayout>
+    </CreationFlowProvider>
   );
 };

@@ -3,9 +3,11 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowUp, Copy, Check, Square, Trash2,
-  MessageSquare, History, ArrowLeft, X, Sparkles, Film, Mic
+  MessageSquare, History, ArrowLeft, X, Sparkles, Film, Mic, ImagePlus
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { useCreationFlow } from '../lib/creationFlow';
+import { uploadAsset } from '../lib/api/studio';
 import {
   promptonApi,
   streamMessage,
@@ -13,24 +15,50 @@ import {
   type PromptonMessage,
 } from '../lib/api/prompton';
 
-const CodeBlock = ({ text }: { text: string }) => {
+const CodeBlock = ({ text, kind }: { text: string; kind?: string }) => {
   const [copied, setCopied] = useState(false);
+  const flow = useCreationFlow();
   const copy = () => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
+  const isImage = kind === 'image-prompt';
+  const isVideo = kind === 'video-prompt';
+  const label = isImage ? 'Image Prompt' : isVideo ? 'Video Prompt' : 'Output';
+
   return (
-    <div className="my-3 rounded-xl border border-white/[0.08] bg-[#0A0A0C] overflow-hidden">
+    <div className={`my-3 rounded-xl border bg-[#0A0A0C] overflow-hidden ${isImage || isVideo ? 'border-[#9758FF]/30' : 'border-white/[0.08]'}`}>
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.04]">
-        <span className="text-[11px] uppercase tracking-wider text-[#7A7A80]">Output</span>
-        <button
-          onClick={copy}
-          className={`flex items-center gap-1.5 text-[11px] transition-colors ${copied ? 'text-white' : 'text-[#7A7A80] hover:text-white'}`}
-        >
-          {copied ? <Check size={13} /> : <Copy size={13} />}
-          {copied ? 'Copied' : 'Copy'}
-        </button>
+        <span className={`text-[11px] uppercase tracking-wider font-semibold ${isImage || isVideo ? 'text-[#C9A8FF]' : 'text-[#7A7A80]'}`}>{label}</span>
+        <div className="flex items-center gap-1">
+          {isImage && (
+            <button
+              onClick={() => flow.startImage({ prompt: text.trim() })}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-[#9758FF] hover:bg-[#854EE6] px-2.5 py-1 rounded-md transition-colors"
+              title="Generate this image now"
+            >
+              <ImagePlus size={12} /> Create Image
+            </button>
+          )}
+          {isVideo && (
+            <button
+              onClick={() => flow.startVideo({ prompt: text.trim(), modelType: 'kling' })}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-[#9758FF] hover:bg-[#854EE6] px-2.5 py-1 rounded-md transition-colors"
+              title="Generate this video now"
+            >
+              <Film size={12} /> Create Video
+            </button>
+          )}
+          <button
+            onClick={copy}
+            className={`flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md transition-colors ${copied ? 'text-white' : 'text-[#7A7A80] hover:text-white'}`}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
       </div>
       <pre className="px-4 py-3 text-[13.5px] text-[#E6E6EA] whitespace-pre-wrap break-words font-mono leading-relaxed">{text}</pre>
     </div>
@@ -69,9 +97,12 @@ const renderContent = (content: string): React.ReactNode[] => {
 
   fenceSplit.forEach((chunk, ci) => {
     if (chunk.startsWith('```')) {
-      // Strip opening fence + optional language tag + closing fence
-      const body = chunk.replace(/^```[a-zA-Z0-9]*\n?/, '').replace(/\n?```$/, '');
-      output.push(<CodeBlock key={`cb-${ci}`} text={body} />);
+      // Capture the fence language tag (e.g. image-prompt / video-prompt) so the
+      // code block can show a matching "Create" button, then strip the fences.
+      const langMatch = chunk.match(/^```([a-zA-Z0-9-]*)\n?/);
+      const lang = (langMatch?.[1] || '').toLowerCase();
+      const body = chunk.replace(/^```[a-zA-Z0-9-]*\n?/, '').replace(/\n?```$/, '');
+      output.push(<CodeBlock key={`cb-${ci}`} text={body} kind={lang} />);
       return;
     }
 
@@ -223,8 +254,19 @@ const MessageRow = ({ message }: { message: PromptonMessage }) => {
   if (isUser) {
     return (
       <motion.div className="flex justify-end" variants={msgVariants} initial="hidden" animate="visible">
-        <div className="max-w-[80%] rounded-[20px] rounded-br-sm bg-[#1E1E22] border border-white/[0.06] text-white px-5 py-3.5 text-[14.5px] leading-relaxed whitespace-pre-wrap shadow-sm">
-          {message.content}
+        <div className="max-w-[80%] flex flex-col items-end gap-2">
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-2">
+              {message.attachments.map((a) => (
+                <img key={a.id} src={a.url} alt="attachment" className="w-24 h-24 rounded-xl object-cover border border-white/[0.08]" />
+              ))}
+            </div>
+          )}
+          {message.content && (
+            <div className="rounded-[20px] rounded-br-sm bg-[#1E1E22] border border-white/[0.06] text-white px-5 py-3.5 text-[14.5px] leading-relaxed whitespace-pre-wrap shadow-sm">
+              {message.content}
+            </div>
+          )}
         </div>
       </motion.div>
     );
@@ -278,9 +320,34 @@ export const PromptonContent = () => {
   const [streamingText, setStreamingText] = useState('');
   const [error, setError] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [attachments, setAttachments] = useState<{ id: string; url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  const onPickFiles = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    const room = 4 - attachments.length;
+    const toUpload = files.slice(0, Math.max(0, room));
+    if (!toUpload.length) return;
+    setUploading(true);
+    setError('');
+    for (const f of toUpload) {
+      try {
+        const a = await uploadAsset(f);
+        setAttachments((prev) => [...prev, { id: a.id, url: a.url, name: a.name || f.name }]);
+      } catch {
+        setError('Could not upload an image.');
+      }
+    }
+    setUploading(false);
+  };
+
+  const removeAttachment = (id: string) =>
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
 
   useEffect(() => {
     promptonApi.list().then(setConversations).catch(() => { });
@@ -339,7 +406,10 @@ export const PromptonContent = () => {
 
   const send = async (text: string) => {
     const content = text.trim();
-    if (!content || streaming) return;
+    if ((!content && attachments.length === 0) || streaming || uploading) return;
+
+    const att = attachments;
+    const attIds = att.map((a) => a.id);
 
     let convId = activeId;
     if (!convId) {
@@ -356,9 +426,16 @@ export const PromptonContent = () => {
 
     setMessages((prev) => [
       ...prev,
-      { id: `tmp-${Date.now()}`, role: 'user', content, created_at: new Date().toISOString() },
+      {
+        id: `tmp-${Date.now()}`,
+        role: 'user',
+        content,
+        created_at: new Date().toISOString(),
+        attachments: att.map((a) => ({ id: a.id, url: a.url })),
+      },
     ]);
     resetComposer();
+    setAttachments([]);
     setError('');
     setStreaming(true);
     setStreamingText('');
@@ -393,7 +470,7 @@ export const PromptonContent = () => {
         setStreamingText('');
         setError(m);
       },
-    });
+    }, attIds);
 
     if (controller.signal.aborted) {
       setStreaming(false);
@@ -418,34 +495,74 @@ export const PromptonContent = () => {
 
   const composerEl = (
     <div className="w-full relative max-w-[1240px] mx-auto">
-      <div className="bg-[#101014]/90 backdrop-blur-md border border-white/[0.08] rounded-[24px] p-2 flex items-end gap-2 focus-within:border-[#9758FF]/50 focus-within:shadow-[0_0_20px_rgba(151,88,255,0.15)] transition-all shadow-lg">
-        <textarea
-          ref={taRef}
-          value={input}
-          onChange={handleInput}
-          onKeyDown={onKeyDown}
-          rows={1}
-          placeholder="Type your creative ideas here..."
-          className="flex-1 bg-transparent resize-none px-4 py-3.5 text-[14.5px] text-white placeholder-[#5A5A60] focus:outline-none max-h-52 leading-relaxed"
-        />
-        {streaming ? (
-          <button
-            onClick={stop}
-            className="shrink-0 w-11 h-11 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] text-white flex items-center justify-center transition-colors cursor-pointer"
-            title="Stop generating"
-          >
-            <Square size={15} fill="currentColor" />
-          </button>
-        ) : (
-          <button
-            onClick={() => send(input)}
-            disabled={!input.trim()}
-            className="shrink-0 w-11 h-11 rounded-2xl bg-gradient-to-r from-[#9758FF] to-[#854EE6] hover:shadow-[0_8px_20px_rgba(151,88,255,0.4)] text-white disabled:opacity-20 disabled:hover:shadow-none flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95"
-            title="Send Message"
-          >
-            <ArrowUp size={18} strokeWidth={2.5} />
-          </button>
+      <div className="bg-[#101014]/90 backdrop-blur-md border border-white/[0.08] rounded-[24px] p-2 focus-within:border-[#9758FF]/50 focus-within:shadow-[0_0_20px_rgba(151,88,255,0.15)] transition-all shadow-lg">
+        {/* Attached images (e.g. a product) the assistant will see */}
+        {(attachments.length > 0 || uploading) && (
+          <div className="flex flex-wrap items-center gap-2 px-2 pt-1.5 pb-2">
+            {attachments.map((a) => (
+              <div key={a.id} className="relative w-14 h-14 rounded-xl overflow-hidden border border-white/[0.1]">
+                <img src={a.url} alt={a.name} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removeAttachment(a.id)}
+                  className="absolute top-0.5 right-0.5 bg-black/70 hover:bg-black text-white rounded-md p-0.5"
+                  title="Remove"
+                >
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+            {uploading && (
+              <div className="w-14 h-14 rounded-xl border border-dashed border-[#9758FF]/40 flex items-center justify-center">
+                <span className="w-4 h-4 rounded-full border-2 border-[#9758FF]/30 border-t-[#9758FF] animate-spin" />
+              </div>
+            )}
+          </div>
         )}
+        <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={onPickFiles}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={attachments.length >= 4 || streaming}
+            className="shrink-0 w-11 h-11 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] text-[#A1A1A5] hover:text-white flex items-center justify-center transition-colors disabled:opacity-40 cursor-pointer"
+            title="Attach a product image"
+          >
+            <ImagePlus size={18} />
+          </button>
+          <textarea
+            ref={taRef}
+            value={input}
+            onChange={handleInput}
+            onKeyDown={onKeyDown}
+            rows={1}
+            placeholder="Type your idea, or attach a product image…"
+            className="flex-1 bg-transparent resize-none px-2 py-3.5 text-[14.5px] text-white placeholder-[#5A5A60] focus:outline-none max-h-52 leading-relaxed"
+          />
+          {streaming ? (
+            <button
+              onClick={stop}
+              className="shrink-0 w-11 h-11 rounded-2xl bg-white/[0.08] hover:bg-white/[0.12] text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Stop generating"
+            >
+              <Square size={15} fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={() => send(input)}
+              disabled={(!input.trim() && attachments.length === 0) || uploading}
+              className="shrink-0 w-11 h-11 rounded-2xl bg-gradient-to-r from-[#9758FF] to-[#854EE6] hover:shadow-[0_8px_20px_rgba(151,88,255,0.4)] text-white disabled:opacity-20 disabled:hover:shadow-none flex items-center justify-center transition-all cursor-pointer hover:scale-105 active:scale-95"
+              title="Send Message"
+            >
+              <ArrowUp size={18} strokeWidth={2.5} />
+            </button>
+          )}
+        </div>
       </div>
       <p className="text-[11px] text-[#5A5A60] mt-3.5 text-center font-medium">
         Your Assistant is here to support your creative process and can make mistakes.

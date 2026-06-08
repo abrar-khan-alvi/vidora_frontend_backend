@@ -10,6 +10,7 @@ import {
 import { type UploadedAsset } from '../lib/api/studio';
 import { ReferenceLibraryModal } from '../components/ReferenceLibraryModal';
 import { useToast } from '../components/Toast';
+import { useCreationFlow } from '../lib/creationFlow';
 
 const QUALITIES: { id: 'lite' | 'standard' | 'turbo'; label: string }[] = [
   { id: 'lite', label: 'Lite' },
@@ -86,6 +87,8 @@ const FrameSlot = ({
 
 export const VideoGenerationContent = () => {
   const toast = useToast();
+  const flow = useCreationFlow();
+  const [fromHandoff, setFromHandoff] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [modelType, setModelType] = useState<'dop' | 'seedance' | 'kling'>('dop');
 
@@ -129,6 +132,32 @@ export const VideoGenerationContent = () => {
   const loadHistory = () => generationApi.listVideos().then(setHistory).catch(() => { });
   useEffect(() => {
     loadHistory();
+  }, []);
+
+  // --- Image → Video handoff: prefill the prompt + drop in the start frame ----
+  const [draftingMotion, setDraftingMotion] = useState(false);
+  useEffect(() => {
+    const h = flow.consumeVideo();
+    if (!h) return;
+    if (h.prompt) setPrompt(h.prompt);
+    if (h.modelType) setModelType(h.modelType);
+    if (h.sourceAssetId && h.sourceUrl) {
+      setStart({ id: h.sourceAssetId, url: h.sourceUrl, name: 'From image' });
+    }
+    setView('create');
+    setFromHandoff(true);
+
+    // A still-image prompt describes a scene, not motion — have the assistant
+    // draft a proper image-to-video motion prompt from it.
+    if (h.imagePrompt) {
+      setDraftingMotion(true);
+      generationApi
+        .suggestMotionPrompt(h.imagePrompt)
+        .then((r) => { if (r.prompt) setPrompt(r.prompt); })
+        .catch(() => { /* leave prompt empty; user can type motion */ })
+        .finally(() => setDraftingMotion(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const run = async () => {
@@ -434,6 +463,17 @@ export const VideoGenerationContent = () => {
         </div>
       </div>
 
+      {/* Handoff guide: arrived here from a generated image */}
+      {fromHandoff && start && (
+        <div className="flex items-center gap-3 bg-[#9758FF]/10 border border-[#9758FF]/25 rounded-2xl p-3.5">
+          <img src={start.url} alt="Start frame" className="h-12 w-12 rounded-lg object-cover border border-[#9758FF]/30 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-white">Your image is ready to animate</p>
+            <p className="text-[12px] text-[#A1A1A5]">Pick a camera motion below (or tweak the prompt), then hit <span className="text-[#C9A8FF] font-semibold">Generate video</span>.</p>
+          </div>
+        </div>
+      )}
+
       {/* Model Selection Tabs */}
       <div className="flex gap-2 border-b border-white/[0.06] pb-3">
         {[
@@ -509,12 +549,20 @@ export const VideoGenerationContent = () => {
 
         {/* Prompt section */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-[#7A7A80] font-medium">Prompt</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] text-[#7A7A80] font-medium">Prompt</span>
+            {draftingMotion && (
+              <span className="flex items-center gap-1.5 text-[11px] text-[#C9A8FF] font-medium">
+                <Sparkles size={11} className="animate-pulse" /> Drafting a motion prompt from your image…
+              </span>
+            )}
+          </div>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the motion and scene details..."
-            className="w-full bg-[#08080A]/60 border border-[#24242B] rounded-xl px-4 py-3.5 text-[14px] text-white placeholder-[#5A5A60] focus:outline-none focus:border-[#9758FF]/50 transition-all min-h-[90px] resize-y leading-relaxed"
+            placeholder={draftingMotion ? 'Drafting motion from your image…' : 'Describe the motion and scene details...'}
+            disabled={draftingMotion}
+            className="w-full bg-[#08080A]/60 border border-[#24242B] rounded-xl px-4 py-3.5 text-[14px] text-white placeholder-[#5A5A60] focus:outline-none focus:border-[#9758FF]/50 transition-all min-h-[90px] resize-y leading-relaxed disabled:opacity-60"
           />
         </div>
 
