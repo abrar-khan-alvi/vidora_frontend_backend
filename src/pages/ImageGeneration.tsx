@@ -112,25 +112,20 @@ export const ImageGenerationContent = () => {
 
   const isWorking = job && ['queued', 'submitted', 'processing'].includes(job.status);
 
-  // --- Assistant → Image handoff: prefill the prompt and auto-generate -------
-  const [autoRunPrompt, setAutoRunPrompt] = useState<string | null>(null);
+  // --- Assistant → Image handoff: prefill the prompt and let the user review --
+  // We DON'T auto-generate — the creator gets to tweak the prompt, aspect, and
+  // reference first, then hits Generate themselves.
   useEffect(() => {
     const h = flow.consumeImage();
     if (!h) return;
     setPrompt(h.prompt);
     if (h.aspect) setAspect(h.aspect);
+    // Feature the character the user chose with the assistant, if any.
+    if (flow.character) setSelectedRef(flow.character.id);
     setView('create');
-    setAutoRunPrompt(h.prompt);
+    toast.success('Prompt ready — tweak it if you like, then hit Generate.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Fire the generation once the prefilled state has committed.
-  useEffect(() => {
-    if (autoRunPrompt !== null && !running) {
-      run(autoRunPrompt);
-      setAutoRunPrompt(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRunPrompt]);
 
   // Generation feedback states
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -173,6 +168,7 @@ export const ImageGenerationContent = () => {
   const openCreate = () => {
     setJob(null);
     loadReferences();
+    if (flow.character) setSelectedRef(flow.character.id);
     setView('create');
   };
   const openDetail = (h: GenerationJob) => {
@@ -298,7 +294,7 @@ export const ImageGenerationContent = () => {
               <div className="grid grid-cols-2 gap-3.5">
                 <div className="bg-[#08080A]/40 border border-white/[0.03] rounded-2xl p-3.5">
                   <div className="text-[11px] text-[#5A5A60] font-semibold uppercase">Model Type</div>
-                  <div className="text-[13.5px] font-semibold text-white mt-1">Soul Image</div>
+                  <div className="text-[13.5px] font-semibold text-white mt-1">Vidora Image</div>
                 </div>
                 <div className="bg-[#08080A]/40 border border-white/[0.03] rounded-2xl p-3.5">
                   <div className="text-[11px] text-[#5A5A60] font-semibold uppercase">Cost</div>

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Asset, Character, Voice
+from .models import Asset, Character, Publication, Voice
 
 
 class AssetSerializer(serializers.ModelSerializer):
@@ -32,6 +32,16 @@ class AssetUploadSerializer(serializers.ModelSerializer):
             return ""
         request = self.context.get("request")
         return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+
+
+class MediaUploadSerializer(serializers.Serializer):
+    """Upload a video or audio clip for the editor (multipart).
+
+    A plain Serializer (not ModelSerializer) so the file isn't validated as an
+    image — Asset.file is an ImageField, but it stores arbitrary media bytes.
+    """
+
+    file = serializers.FileField()
 
 
 class AssetRenameSerializer(serializers.ModelSerializer):
@@ -102,3 +112,29 @@ class VoiceRenameSerializer(serializers.ModelSerializer):
         model = Voice
         fields = ("name",)
         extra_kwargs = {"name": {"required": True, "allow_blank": False, "max_length": 120}}
+
+
+class PublicationSerializer(serializers.ModelSerializer):
+    """A published (shareable) video — used both for the owner's list and the
+    public share view."""
+
+    video_url = serializers.SerializerMethodField()
+    share_token = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = Publication
+        fields = ("id", "title", "share_token", "video_url", "created_at")
+        read_only_fields = fields
+
+    def get_video_url(self, obj):
+        if not obj.asset or not obj.asset.file:
+            return ""
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.asset.file.url) if request else obj.asset.file.url
+
+
+class PublicationCreateSerializer(serializers.Serializer):
+    """Publish a finished video Asset (makes it shareable)."""
+
+    asset_id = serializers.UUIDField()
+    title = serializers.CharField(max_length=200, required=False, allow_blank=True, default="")

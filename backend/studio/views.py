@@ -3,18 +3,22 @@ import os
 
 from rest_framework import generics, status
 from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from providers import elevenlabs
 
-from .models import Asset, Character, Voice
+from .models import Asset, Character, Publication, Voice
 from .serializers import (
     AssetRenameSerializer,
     AssetSerializer,
     AssetUploadSerializer,
     CharacterCreateSerializer,
     CharacterSerializer,
+    MediaUploadSerializer,
+    PublicationCreateSerializer,
+    PublicationSerializer,
     VoiceCreateSerializer,
     VoiceRenameSerializer,
     VoiceSerializer,
@@ -62,6 +66,53 @@ class AssetUploadView(generics.CreateAPIView):
             name=_auto_name(request.user, getattr(upload, "name", "")),
             content_hash=digest,
         )
+        out = AssetSerializer(asset, context=self.get_serializer_context()).data
+        return Response(out, status=status.HTTP_201_CREATED)
+
+
+class MediaAssetListCreateView(generics.ListCreateAPIView):
+    """Editor media library: list (GET) or upload (POST) the user's video/audio
+    Assets. `?type=video|audio` filters the list. Unlike AssetUploadView this
+    accepts non-image media (Asset.file stores arbitrary bytes)."""
+
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_serializer_class(self):
+        return MediaUploadSerializer if self.request.method == "POST" else AssetSerializer
+
+    def get_queryset(self):
+        qs = Asset.objects.filter(user=self.request.user).exclude(file="")
+        kind = self.request.query_params.get("type")
+        if kind in (Asset.Type.VIDEO, Asset.Type.AUDIO):
+            qs = qs.filter(type=kind)
+        else:
+            qs = qs.filter(type__in=[Asset.Type.VIDEO, Asset.Type.AUDIO])
+        return qs
+
+    def create(self, request, *args, **kwargs):
+        serializer = MediaUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        upload = serializer.validated_data["file"]
+
+        content_type = (getattr(upload, "content_type", "") or "").lower()
+        if content_type.startswith("audio"):
+            asset_type = Asset.Type.AUDIO
+        elif content_type.startswith("video"):
+            asset_type = Asset.Type.VIDEO
+        else:
+            return Response(
+                {"file": ["Only video or audio files are supported."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        asset = Asset(
+            user=request.user,
+            source=Asset.Source.UPLOAD,
+            type=asset_type,
+            mime=content_type,
+            name=_auto_name(request.user, getattr(upload, "name", "")),
+        )
+        asset.file.save(getattr(upload, "name", "clip"), upload, save=True)
         out = AssetSerializer(asset, context=self.get_serializer_context()).data
         return Response(out, status=status.HTTP_201_CREATED)
 
@@ -232,3 +283,55 @@ class VoiceDetailView(generics.RetrieveUpdateDestroyAPIView):
             except Exception:
                 pass  # best-effort; still remove locally
         instance.delete()
+
+
+class PublicationListCreateView(generics.ListCreateAPIView):
+    """List the user's published videos, or publish a finished video (makes it
+    shareable via a public link)."""
+
+    def get_queryset(self):
+        return Publication.objects.filter(user=self.request.user)
+
+    def get_serializer_class(self):
+        return PublicationCreateSerializer if self.request.method == "POST" else PublicationSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = PublicationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        asset = Asset.objects.filter(
+            id=d["asset_id"], user=request.user, type=Asset.Type.VIDEO
+        ).first()
+        if not asset or not asset.file:
+            return Response({"asset_id": ["Video not found."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        pub = Publication.objects.create(
+            user=request.user, asset=asset, title=(d.get("title") or "").strip()[:200]
+        )
+        return Response(
+            PublicationSerializer(pub, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class PublicationDetailView(generics.RetrieveDestroyAPIView):
+    """View or unpublish (delete) one of the user's publications."""
+
+    serializer_class = PublicationSerializer
+
+    def get_queryset(self):
+        return Publication.objects.filter(user=self.request.user)
+
+
+class PublicShareView(generics.RetrieveAPIView):
+    """Public, unauthenticated view of a published video by its share token."""
+
+    serializer_class = PublicationSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    lookup_field = "share_token"
+    lookup_url_kwarg = "token"
+
+    def get_queryset(self):
+        return Publication.objects.all()

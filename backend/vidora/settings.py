@@ -40,6 +40,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Serves Django's own static files (the admin) in production.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -104,8 +106,11 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("REFRESH_TOKEN_DAYS", "7"))),
 }
 
-# --- CORS -------------------------------------------------------------------
+# --- CORS / CSRF ------------------------------------------------------------
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+# Hosts allowed to POST to the Django admin / session endpoints over HTTPS.
+# In prod set e.g. "https://api.yourdomain.com,https://app.yourdomain.com".
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS", "")
 
 # --- Email -------------------------------------------------------------------
 # If EMAIL_HOST is set we send over SMTP; otherwise codes print to the console.
@@ -170,11 +175,47 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Media (user uploads + generated assets). Dev: local volume; prod: swap to R2/S3.
+# Media (user uploads + generated assets). Dev: local volume; prod: S3 + CloudFront.
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Static files (Django admin) are served by WhiteNoise from STATIC_ROOT.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
+
+# When USE_S3 is on, user uploads + generated assets go to S3 and are served
+# over your CloudFront domain. Credentials are optional here — on EC2 they're
+# picked up from the instance's IAM role (the preferred, key-less setup).
+USE_S3 = env_bool("USE_S3", False)
+if USE_S3:
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME")
+    AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")  # e.g. media.yourdomain.com
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID") or None
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY") or None
+    AWS_QUERYSTRING_AUTH = False  # public, CDN-cacheable URLs
+    AWS_DEFAULT_ACL = None
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "public, max-age=86400"}
+    STORAGES["default"] = {"BACKEND": "storages.backends.s3.S3Storage"}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Production security (active when DEBUG is off) -------------------------
+# Behind nginx + Cloudflare, trust the forwarded protocol so Django knows the
+# request arrived over HTTPS (for secure cookies, redirects, absolute URLs).
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
 
 # --- Celery -----------------------------------------------------------------
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")

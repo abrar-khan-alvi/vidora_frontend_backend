@@ -10,4 +10,7 @@ httpx>=0.27,<0.29
 Pillow>=11.0
 higgsfield-client
 stripe>=10.0
+# Production: serve media from S3/CloudFront and static via WhiteNoise.
+django-storages[s3]>=1.14
+whitenoise>=6.8
 

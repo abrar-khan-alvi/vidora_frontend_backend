@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Video, Sparkles, Download, AlertCircle, X, Plus, ArrowRight, ChevronLeft, ChevronRight, RefreshCw,
-  Check, Film, Smartphone, BookOpen, ShoppingBag, Mic, RotateCcw, RotateCw, Globe, ZoomIn, ZoomOut, Zap, Activity, ArrowDown, Send, ArrowLeft, Clock
+  Check, Film, Smartphone, BookOpen, ShoppingBag, Mic, RotateCcw, RotateCw, Globe, ZoomIn, ZoomOut, Zap, Activity, ArrowDown, Send, ArrowLeft, Clock, Trash2
 } from 'lucide-react';
 import {
   generationApi, pollJob,
@@ -90,27 +90,15 @@ export const VideoGenerationContent = () => {
   const flow = useCreationFlow();
   const [fromHandoff, setFromHandoff] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const [modelType, setModelType] = useState<'dop' | 'seedance' | 'kling'>('dop');
-
-  // DoP specific parameters
+  // Vidora's cinematic engine (Director of Photography) is the only video engine.
+  const modelType = 'dop' as const;
   const [dopModel, setDopModel] = useState<'dop-lite' | 'dop-preview' | 'dop-turbo'>('dop-preview');
+  // Clip length: 1 segment ≈ 5s; we chain segments for longer videos.
+  const [segments, setSegments] = useState(1);
   const [motionId, setMotionId] = useState('');
   const [motionStrength, setMotionStrength] = useState(0.8);
   const [dopEnhance, setDopEnhance] = useState(true);
   const [dopNsfw, setDopNsfw] = useState(true);
-
-  // Seedance specific parameters
-  const [sdResolution, setSdResolution] = useState<'720p' | '1080p'>('720p');
-  const [sdAspectRatio, setSdAspectRatio] = useState('16:9');
-  const [sdDuration, setSdDuration] = useState(5);
-  const [sdEnhance, setSdEnhance] = useState(false);
-
-  // Kling specific parameters
-  const [klModel, setKlModel] = useState('kling-video/v2.6/pro/image-to-video');
-  const [klDuration, setKlDuration] = useState(5);
-  const [klAspectRatio, setKlAspectRatio] = useState('16:9');
-  const [klNegativePrompt, setKlNegativePrompt] = useState('');
-  const [klEnhance, setKlEnhance] = useState(true);
 
   // General parameters
   const [seed, setSeed] = useState<number>(12345);
@@ -140,7 +128,6 @@ export const VideoGenerationContent = () => {
     const h = flow.consumeVideo();
     if (!h) return;
     if (h.prompt) setPrompt(h.prompt);
-    if (h.modelType) setModelType(h.modelType);
     if (h.sourceAssetId && h.sourceUrl) {
       setStart({ id: h.sourceAssetId, url: h.sourceUrl, name: 'From image' });
     }
@@ -161,55 +148,26 @@ export const VideoGenerationContent = () => {
   }, []);
 
   const run = async () => {
-    // For DoP, start frame is required. For others, optional (turns into text-to-video if empty)
-    if (modelType === 'dop' && !start) {
-      toast.error("Start frame is required for Higgsfield DoP (Director of Photography) model.");
+    if (!start) {
+      toast.error("A start frame is required — pick an image to animate.");
       return;
     }
     if (running) return;
     setRunning(true);
     try {
-      // Build dynamic input params based on modelType
-      let inputParams: Record<string, any> = {
-        model_type: modelType,
+      const created = await generationApi.createVideo({
+        model_type: 'dop',
         prompt: prompt.trim(),
         seed: useRandomSeed ? Math.floor(Math.random() * 999999) : seed,
-      };
-
-      if (modelType === 'dop') {
-        inputParams = {
-          ...inputParams,
-          source: start?.id ?? null,
-          end_frame: end?.id ?? null,
-          quality: dopModel,
-          motion_id: motionId || null,
-          motion_strength: motionStrength,
-          enhance_prompt: dopEnhance,
-          check_nsfw: dopNsfw,
-        };
-      } else if (modelType === 'seedance') {
-        inputParams = {
-          ...inputParams,
-          source: start?.id ?? null,
-          resolution: sdResolution,
-          aspect_ratio: sdAspectRatio,
-          duration: sdDuration,
-          enhance_prompt: sdEnhance,
-        };
-      } else if (modelType === 'kling') {
-        inputParams = {
-          ...inputParams,
-          model: klModel,
-          source: start?.id ?? null,
-          end_frame: end?.id ?? null,
-          duration: klDuration,
-          aspect_ratio: klAspectRatio,
-          negative_prompt: klNegativePrompt.trim() || null,
-          enhance_prompt: klEnhance,
-        };
-      }
-
-      const created = await generationApi.createVideo(inputParams);
+        source: start?.id ?? null,
+        end_frame: end?.id ?? null,
+        quality: dopModel,
+        segments,
+        motion_id: motionId || null,
+        motion_strength: motionStrength,
+        enhance_prompt: dopEnhance,
+        check_nsfw: dopNsfw,
+      });
       setJob(created);
       await pollJob(created.id, setJob);
     } catch {
@@ -264,7 +222,17 @@ export const VideoGenerationContent = () => {
     return () => clearInterval(interval);
   }, [isWorking]);
 
-  const gallery = history.filter((h) => h.status === 'succeeded' && h.outputs.length > 0);
+  // Show every generation (succeeded, in-progress, and failed/rejected) so the
+  // user can re-run the ones that didn't make it.
+  const WORKING = ['queued', 'submitted', 'processing'];
+  const anyWorking = history.some((h) => WORKING.includes(h.status));
+  // Keep the list live while anything is still rendering.
+  useEffect(() => {
+    if (view !== 'list' || !anyWorking) return;
+    const t = setInterval(loadHistory, 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, anyWorking]);
 
   const openCreate = () => {
     setJob(null);
@@ -278,6 +246,46 @@ export const VideoGenerationContent = () => {
     setPrompt(h.prompt);
     setJob(null);
     setView('create');
+  };
+
+  // Reload a past job's full setup into the create view so it can be re-run
+  // (e.g. a rejected/failed generation). We prefill rather than auto-submit so
+  // the user can tweak the prompt or frames before regenerating.
+  const rerun = (h: GenerationJob) => {
+    const p = h.input_params || {};
+    setPrompt(h.prompt || '');
+    setStart(h.source_frame ? { id: h.source_frame.id, url: h.source_frame.url, name: 'Start frame' } : null);
+    setEnd(h.end_frame ? { id: h.end_frame.id, url: h.end_frame.url, name: 'End frame' } : null);
+    if (p.quality === 'dop-lite' || p.quality === 'dop-preview' || p.quality === 'dop-turbo') setDopModel(p.quality);
+    if (p.segments) setSegments(p.segments);
+    if (typeof p.motion_strength === 'number') setMotionStrength(p.motion_strength);
+    if (p.motion_id) setMotionId(p.motion_id);
+    if (typeof p.enhance_prompt === 'boolean') setDopEnhance(p.enhance_prompt);
+    if (typeof p.check_nsfw === 'boolean') setDopNsfw(p.check_nsfw);
+    setJob(null);
+    setView('create');
+    toast.success('Loaded that generation — tweak it if you like, then Generate.');
+  };
+
+  // Delete a generation from the list (cancels it first if still running).
+  // Opens a confirmation modal; the actual delete runs in confirmRemove().
+  const [confirmDelete, setConfirmDelete] = useState<GenerationJob | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const removeJob = (h: GenerationJob) => setConfirmDelete(h);
+  const confirmRemove = async () => {
+    if (!confirmDelete || deleting) return;
+    const h = confirmDelete;
+    setDeleting(true);
+    try {
+      await generationApi.remove(h.id);
+      setHistory((prev) => prev.filter((x) => x.id !== h.id));
+      toast.success('Generation deleted.');
+      setConfirmDelete(null);
+    } catch {
+      toast.error('Could not delete that generation.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // ---- LIST VIEW: gallery of generated videos + "New Generation" ----------
@@ -302,26 +310,67 @@ export const VideoGenerationContent = () => {
           </button>
         </div>
 
-        {gallery.length > 0 ? (
+        {history.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {gallery.map((h) => (
-              <button
-                key={h.id}
-                onClick={() => openDetail(h)}
-                className="group flex flex-col gap-2 text-left"
-                title={h.prompt || 'Video'}
-              >
-                <div className="aspect-video rounded-xl overflow-hidden border border-white/[0.06] group-hover:border-[#9758FF]/40 transition-all bg-black relative">
-                  <video src={h.outputs[0].url} muted className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">
-                    <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                      <Video size={15} className="text-white" />
-                    </div>
+            {history.map((h) => {
+              const done = h.status === 'succeeded' && h.outputs[0];
+              const working = WORKING.includes(h.status);
+              const failed = h.status === 'failed' || h.status === 'canceled';
+              return (
+                <div key={h.id} className="flex flex-col gap-2" title={h.prompt || 'Video'}>
+                  <div className={`group aspect-video rounded-xl overflow-hidden border transition-all bg-black relative ${done ? 'border-white/[0.06] hover:border-[#9758FF]/40 cursor-pointer' : failed ? 'border-[#F87171]/25' : 'border-white/[0.06]'}`}
+                    onClick={done ? () => openDetail(h) : undefined}>
+                    {done ? (
+                      <video src={h.outputs[0].url} muted className="w-full h-full object-cover" />
+                    ) : h.source_frame ? (
+                      <img src={h.source_frame.url} alt="" className="w-full h-full object-cover opacity-30" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-[#1A1A1F] to-[#0C0C0E]" />
+                    )}
+
+                    {/* Delete this generation (revealed on hover). */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeJob(h); }}
+                      className="absolute top-1.5 right-1.5 z-10 w-7 h-7 rounded-lg bg-black/55 hover:bg-[#F87171] text-white/80 hover:text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                      title="Delete this generation"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+
+                    {done && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/10 transition-colors">
+                        <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                          <Video size={15} className="text-white" />
+                        </div>
+                      </div>
+                    )}
+
+                    {working && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/55">
+                        <RefreshCw size={18} className="text-[#C9A8FF] animate-spin" />
+                        <span className="text-[11px] text-[#C9A8FF] font-semibold capitalize">{h.status}</span>
+                      </div>
+                    )}
+
+                    {failed && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/55 px-3 text-center" title={h.error || 'Generation did not complete'}>
+                        <div className="flex items-center gap-1.5 text-[#F87171]">
+                          <AlertCircle size={15} />
+                          <span className="text-[11.5px] font-semibold">Not generated</span>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); rerun(h); }}
+                          className="flex items-center gap-1.5 bg-[#9758FF] hover:bg-[#854EE6] text-white px-3 py-1.5 rounded-lg text-[11.5px] font-semibold transition-colors"
+                        >
+                          <RotateCcw size={12} /> Re-run
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  <span className="text-[12px] text-[#A1A1A5] line-clamp-1 px-0.5">{h.prompt || 'Untitled'}</span>
                 </div>
-                <span className="text-[12px] text-[#A1A1A5] line-clamp-1 px-0.5">{h.prompt || 'Untitled'}</span>
-              </button>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
@@ -338,6 +387,52 @@ export const VideoGenerationContent = () => {
             >
               <Plus size={18} /> New Generation
             </button>
+          </div>
+        )}
+
+        {/* Delete confirmation */}
+        {confirmDelete && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+            onClick={() => !deleting && setConfirmDelete(null)}
+          >
+            <div
+              className="w-full max-w-[560px] bg-[#0E0E11] border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-7 flex flex-col gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-xl bg-[#F87171]/10 flex items-center justify-center shrink-0">
+                    <Trash2 size={22} className="text-[#F87171]" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-[17px]">Delete this generation?</h3>
+                    <p className="text-[#7A7A80] text-[13.5px] mt-0.5">This can’t be undone.</p>
+                  </div>
+                </div>
+                {confirmDelete.prompt && (
+                  <p className="text-[13.5px] leading-relaxed text-[#A1A1A5] max-h-[180px] overflow-y-auto bg-[#08080A]/60 border border-white/[0.04] rounded-lg px-4 py-3">
+                    {confirmDelete.prompt}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-2.5 px-7 py-5 border-t border-white/[0.06]">
+                <button
+                  onClick={() => setConfirmDelete(null)}
+                  disabled={deleting}
+                  className="px-5 py-2.5 rounded-lg text-[14px] font-semibold text-[#C4C4C8] hover:bg-white/[0.06] disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRemove}
+                  disabled={deleting}
+                  className="px-5 py-2.5 rounded-lg text-[14px] font-semibold text-white bg-[#F87171] hover:bg-[#EF4444] disabled:opacity-50 flex items-center gap-2 transition-colors"
+                >
+                  {deleting ? <><RefreshCw size={15} className="animate-spin" /> Deleting…</> : <><Trash2 size={15} /> Delete</>}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -419,8 +514,15 @@ export const VideoGenerationContent = () => {
             {/* Actions group */}
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => reusePrompt(detailJob)}
+                onClick={() => flow.startEdit({ sourceAssetId: detailJob.outputs[0].id, sourceUrl: detailJob.outputs[0].url, name: detailJob.prompt || 'Clip' })}
                 className="w-full bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] hover:shadow-[0_8px_25px_rgba(106,57,196,0.3)] text-white py-3.5 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              >
+                <Mic size={16} /> Add voiceover &amp; edit
+              </button>
+
+              <button
+                onClick={() => reusePrompt(detailJob)}
+                className="w-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[#C4C4C8] py-3.5 rounded-2xl font-bold text-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
               >
                 <RefreshCw size={16} /> Make a variation
               </button>
@@ -459,7 +561,7 @@ export const VideoGenerationContent = () => {
         </div>
         <div>
           <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">Bring To Life (Video)</h1>
-          <p className="text-[#7A7A80] text-[13px]">Select a model and construct your generation parameters.</p>
+          <p className="text-[#7A7A80] text-[13px]">Animate your image with cinematic camera motion.</p>
         </div>
       </div>
 
@@ -474,76 +576,63 @@ export const VideoGenerationContent = () => {
         </div>
       )}
 
-      {/* Model Selection Tabs */}
-      <div className="flex gap-2 border-b border-white/[0.06] pb-3">
-        {[
-          { id: 'dop', label: 'DoP (Director of Photography)', desc: 'Advanced camera presets' },
-          { id: 'seedance', label: 'Seedance 2.0', desc: 'ByteDance cinematic physics' },
-          { id: 'kling', label: 'Kling', desc: 'Photorealistic transitions' },
-        ].map((m) => (
-          <button
-            key={m.id}
-            onClick={() => setModelType(m.id as any)}
-            className={`flex-1 text-left p-3.5 rounded-xl border transition-all ${modelType === m.id
-                ? 'bg-[#9758FF]/15 border-[#9758FF] text-white shadow-[0_0_15px_rgba(151,88,255,0.15)]'
-                : 'bg-[#0F0F12]/60 border-white/[0.04] text-[#7A7A80] hover:border-white/[0.1] hover:text-white'
-              }`}
-          >
-            <div className="text-[14px] font-semibold">{m.label}</div>
-            <div className="text-[11.5px] opacity-80 mt-0.5">{m.desc}</div>
-          </button>
-        ))}
-      </div>
-
       {/* Composer */}
       <div className="bg-[#131316]/60 border border-white/[0.06] rounded-2xl p-5 flex flex-col gap-6">
 
-        {/* Model Meta info */}
+        {/* Engine header + render quality */}
         <div className="flex items-center justify-between border-b border-white/[0.04] pb-4">
           <div>
-            <span className="text-[12px] uppercase tracking-wider text-[#9758FF] font-semibold">Active Model Config</span>
-            <h3 className="text-white text-[15px] font-medium mt-0.5">
-              {modelType === 'dop' && 'Higgsfield DoP'}
-              {modelType === 'seedance' && 'Seedance 2.0 (by ByteDance)'}
-              {modelType === 'kling' && 'Kling Video Model'}
-            </h3>
+            <span className="text-[12px] uppercase tracking-wider text-[#9758FF] font-semibold">Vidora Cinematic Engine</span>
+            <h3 className="text-white text-[15px] font-medium mt-0.5">Director of Photography</h3>
           </div>
 
-          {/* Quality selection for DoP */}
-          {modelType === 'dop' && (
-            <div className="flex items-center gap-1.5 bg-[#08080A]/85 p-1 rounded-lg border border-white/[0.05]">
-              {(['dop-lite', 'dop-turbo', 'dop-preview'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setDopModel(mode)}
-                  className={`px-3 py-1.5 rounded-md text-[11.5px] font-semibold transition-all ${dopModel === mode
-                      ? 'bg-[#9758FF] text-white shadow-sm'
-                      : 'text-[#7A7A80] hover:text-white'
-                    }`}
-                >
-                  {mode === 'dop-lite' && 'Lite'}
-                  {mode === 'dop-turbo' && 'Turbo'}
-                  {mode === 'dop-preview' && 'Studio Master'}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Kling specific models */}
-          {modelType === 'kling' && (
-            <div className="select-wrap">
-              <select
-                value={klModel}
-                onChange={(e) => setKlModel(e.target.value)}
-                className="bg-[#08080A] border border-white/[0.08] text-white rounded-lg px-2.5 py-1.5 text-[12.5px] focus:outline-none focus:border-[#9758FF]"
+          {/* Render quality */}
+          <div className="flex items-center gap-1.5 bg-[#08080A]/85 p-1 rounded-lg border border-white/[0.05]">
+            {(['dop-lite', 'dop-turbo', 'dop-preview'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setDopModel(mode)}
+                className={`px-3 py-1.5 rounded-md text-[11.5px] font-semibold transition-all ${dopModel === mode
+                    ? 'bg-[#9758FF] text-white shadow-sm'
+                    : 'text-[#7A7A80] hover:text-white'
+                  }`}
               >
-                <option value="kling-video/v2.1/pro/image-to-video">Kling v2.1 Pro</option>
-                <option value="kling-video/v2.5/turbo/image-to-video">Kling v2.5 Turbo</option>
-                <option value="kling-video/v2.6/pro/image-to-video">Kling v2.6 Pro</option>
-                <option value="kling-video/v3.0/pro/image-to-video">Kling v3.0 Pro</option>
-                <option value="kling-video/v3.0/standard/image-to-video">Kling v3.0 Standard</option>
-              </select>
-            </div>
+                {mode === 'dop-lite' && 'Lite'}
+                {mode === 'dop-turbo' && 'Turbo'}
+                {mode === 'dop-preview' && 'Studio Master'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Clip length — DoP shoots ~5s; we chain segments for longer videos. */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[12px] text-[#7A7A80] font-medium">Duration</span>
+            {segments > 1 && (
+              <span className="text-[11px] text-[#C9A8FF]">
+                {segments} cinematic takes, blended into one continuous shot
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {([1, 2, 3, 4] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => setSegments(n)}
+                className={`py-2 rounded-lg text-[12.5px] font-semibold border transition-all ${segments === n
+                    ? 'bg-[#9758FF] text-white border-[#9758FF] shadow-sm'
+                    : 'bg-[#08080A]/60 text-[#9A9AA0] border-white/[0.06] hover:text-white hover:border-white/[0.15]'
+                  }`}
+              >
+                ~{n * 5}s
+              </button>
+            ))}
+          </div>
+          {segments > 1 && (
+            <p className="text-[11px] text-[#6A6A70] leading-snug">
+              Longer clips are built from {segments} takes (each continues from the last frame of the one before), so they take a few minutes — and cost {segments}× a standard render.
+            </p>
           )}
         </div>
 
@@ -566,28 +655,23 @@ export const VideoGenerationContent = () => {
           />
         </div>
 
-        {/* Dynamic Image Slots */}
+        {/* Start / End frames */}
         <div className="flex items-center gap-4 flex-wrap">
           <FrameSlot
-            label={modelType === 'dop' ? "Start Frame" : "Input Image"}
-            hint={modelType === 'dop' ? "(required)" : "(optional — defaults to text-to-video)"}
+            label="Start Frame"
+            hint="(required)"
             frame={start}
             onPick={() => setPickerFor('start')}
             onClear={() => setStart(null)}
           />
-
-          {modelType !== 'seedance' && (
-            <>
-              <ArrowRight size={18} className="text-[#3A3A40] mb-8" />
-              <FrameSlot
-                label="End Frame"
-                hint="(optional — morph transition)"
-                frame={end}
-                onPick={() => setPickerFor('end')}
-                onClear={() => setEnd(null)}
-              />
-            </>
-          )}
+          <ArrowRight size={18} className="text-[#3A3A40] mb-8" />
+          <FrameSlot
+            label="End Frame"
+            hint="(optional — morph transition)"
+            frame={end}
+            onPick={() => setPickerFor('end')}
+            onClear={() => setEnd(null)}
+          />
         </div>
 
         {/* DoP Motion Presets Selector Carousel */}
@@ -916,68 +1000,6 @@ export const VideoGenerationContent = () => {
           );
         })()}
 
-        {/* Model configurations (Resolution, Aspect Ratio, Duration) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-white/[0.04] pt-5">
-          {/* Aspect Ratio */}
-          {modelType !== 'dop' && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-[#7A7A80] font-medium">Aspect Ratio</span>
-              <select
-                value={modelType === 'seedance' ? sdAspectRatio : klAspectRatio}
-                onChange={(e) => modelType === 'seedance' ? setSdAspectRatio(e.target.value) : setKlAspectRatio(e.target.value)}
-                className="bg-[#08080A] border border-white/[0.08] text-white rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#9758FF]"
-              >
-                <option value="16:9">16:9 — landscape (YouTube)</option>
-                <option value="9:16">9:16 — vertical (TikTok/Reels)</option>
-                <option value="1:1">1:1 — square (Instagram)</option>
-                <option value="4:3">4:3 — presentation format</option>
-                <option value="21:9">21:9 — ultra-wide widescreen</option>
-              </select>
-            </div>
-          )}
-
-          {/* Resolution for Seedance */}
-          {modelType === 'seedance' && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-[#7A7A80] font-medium">Resolution</span>
-              <select
-                value={sdResolution}
-                onChange={(e: any) => setSdResolution(e.target.value)}
-                className="bg-[#08080A] border border-white/[0.08] text-white rounded-lg px-3 py-2 text-[13px] focus:outline-none focus:border-[#9758FF]"
-              >
-                <option value="720p">720p — draft rendering</option>
-                <option value="1080p">1080p — production delivery</option>
-              </select>
-            </div>
-          )}
-
-          {/* Duration slider */}
-          {modelType !== 'dop' && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-[#7A7A80] font-medium">
-                Duration: <span className="text-white font-semibold">{modelType === 'seedance' ? sdDuration : klDuration}s</span>
-              </span>
-              <div className="flex items-center gap-3 mt-1.5">
-                <span className="text-[11px] text-[#5A5A60]">
-                  {modelType === 'seedance' ? '4s' : '5s'}
-                </span>
-                <input
-                  type="range"
-                  min={modelType === 'seedance' ? 4 : 5}
-                  max={modelType === 'seedance' ? 15 : 10}
-                  step={modelType === 'seedance' ? 1 : 5}
-                  value={modelType === 'seedance' ? sdDuration : klDuration}
-                  onChange={(e) => modelType === 'seedance' ? setSdDuration(parseInt(e.target.value)) : setKlDuration(parseInt(e.target.value))}
-                  className="flex-1 accent-[#9758FF]"
-                />
-                <span className="text-[11px] text-[#5A5A60]">
-                  {modelType === 'seedance' ? '15s' : '10s'}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Collapsible Advanced Settings Accordion */}
         <div className="border-t border-white/[0.04] pt-4">
           <button
@@ -1016,40 +1038,25 @@ export const VideoGenerationContent = () => {
                 )}
               </div>
 
-              {/* DoP Motion Strength slider */}
-              {modelType === 'dop' && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-[12px] text-[#7A7A80] font-medium">
-                    Motion Intensity: <span className="text-white font-semibold">{motionStrength.toFixed(1)}</span>
-                  </span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-[#5A5A60]">Subtle</span>
-                    <input
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.1}
-                      value={motionStrength}
-                      onChange={(e) => setMotionStrength(parseFloat(e.target.value))}
-                      className="flex-1 accent-[#9758FF]"
-                    />
-                    <span className="text-[10px] text-[#5A5A60]">Dynamic</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Kling Negative Prompt */}
-              {modelType === 'kling' && (
-                <div className="flex flex-col gap-1.5 md:col-span-2">
-                  <span className="text-[12px] text-[#7A7A80] font-medium">Negative Prompt (what to avoid)</span>
-                  <textarea
-                    value={klNegativePrompt}
-                    onChange={(e) => setKlNegativePrompt(e.target.value)}
-                    placeholder="e.g. low resolution, blurred, text, watermarks..."
-                    className="w-full bg-[#08080A]/60 border border-white/[0.08] rounded-lg px-3 py-2 text-[12.5px] text-white focus:outline-none focus:border-[#9758FF] min-h-[50px] resize-none"
+              {/* Motion intensity */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[12px] text-[#7A7A80] font-medium">
+                  Motion Intensity: <span className="text-white font-semibold">{motionStrength.toFixed(1)}</span>
+                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-[#5A5A60]">Subtle</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={motionStrength}
+                    onChange={(e) => setMotionStrength(parseFloat(e.target.value))}
+                    className="flex-1 accent-[#9758FF]"
                   />
+                  <span className="text-[10px] text-[#5A5A60]">Dynamic</span>
                 </div>
-              )}
+              </div>
 
               {/* Toggles */}
               <div className="flex flex-col gap-3 md:col-span-2 pt-2 border-t border-white/[0.03] mt-2">
@@ -1060,30 +1067,24 @@ export const VideoGenerationContent = () => {
                   </div>
                   <input
                     type="checkbox"
-                    checked={modelType === 'dop' ? dopEnhance : modelType === 'seedance' ? sdEnhance : klEnhance}
-                    onChange={(e) => {
-                      if (modelType === 'dop') setDopEnhance(e.target.checked);
-                      else if (modelType === 'seedance') setSdEnhance(e.target.checked);
-                      else if (modelType === 'kling') setKlEnhance(e.target.checked);
-                    }}
+                    checked={dopEnhance}
+                    onChange={(e) => setDopEnhance(e.target.checked)}
                     className="w-4 h-4 accent-[#9758FF]"
                   />
                 </div>
 
-                {modelType === 'dop' && (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-[12.5px] text-white font-semibold">Content NSFW Check</div>
-                      <div className="text-[11.5px] text-[#5A5A60]">Filters out inappropriate or unsafe material.</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={dopNsfw}
-                      onChange={(e) => setDopNsfw(e.target.checked)}
-                      className="w-4 h-4 accent-[#9758FF]"
-                    />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[12.5px] text-white font-semibold">Content Safety Check</div>
+                    <div className="text-[11.5px] text-[#5A5A60]">Filters out inappropriate or unsafe material.</div>
                   </div>
-                )}
+                  <input
+                    type="checkbox"
+                    checked={dopNsfw}
+                    onChange={(e) => setDopNsfw(e.target.checked)}
+                    className="w-4 h-4 accent-[#9758FF]"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -1093,7 +1094,7 @@ export const VideoGenerationContent = () => {
         <div className="flex items-center pt-2 border-t border-white/[0.04]">
           <button
             onClick={() => run()}
-            disabled={(modelType === 'dop' && !start) || running}
+            disabled={!start || running}
             className="ml-auto bg-[#9758FF] hover:bg-[#854EE6] disabled:opacity-50 text-white px-7 py-3 rounded-xl font-semibold text-[14px] transition-all flex items-center gap-2 shadow-[0_8px_25px_rgba(151,88,255,0.3)] active:scale-[0.98]"
           >
             <Sparkles size={17} /> {running ? 'Generating…' : 'Generate video'}
@@ -1223,6 +1224,12 @@ export const VideoGenerationContent = () => {
               <div className="rounded-2xl overflow-hidden border border-white/[0.06] bg-black w-full flex items-center justify-center">
                 <video src={job.outputs[0].url} controls autoPlay loop className="max-h-[50vh] w-auto max-w-full block" />
               </div>
+              <button
+                onClick={() => flow.startEdit({ sourceAssetId: job.outputs[0].id, sourceUrl: job.outputs[0].url, name: job.prompt || 'Clip' })}
+                className="w-full bg-gradient-to-r from-[#6A39C4] to-[#8C4DE8] hover:shadow-[0_8px_25px_rgba(106,57,196,0.3)] text-white py-3 rounded-xl font-bold text-[13px] transition-all flex items-center justify-center gap-2"
+              >
+                <Mic size={15} /> Add voiceover &amp; edit
+              </button>
               <button
                 onClick={() => downloadVideo(job.outputs[0].url, `vidora-${job.outputs[0].id}.mp4`)}
                 className="w-full bg-[#1B1B21] hover:bg-[#24242B] border border-white/[0.05] text-[#C9A8FF] py-3 rounded-xl font-bold text-[13px] transition-all flex items-center justify-center gap-2"

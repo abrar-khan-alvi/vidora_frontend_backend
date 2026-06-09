@@ -6,9 +6,10 @@ from providers import higgsfield
 
 from .models import GenerationJob
 from .serializers import (
+    CreateAudioFxJobSerializer,
+    CreateEditJobSerializer,
     CreateImageJobSerializer,
     CreateTTSJobSerializer,
-    CreateUGCJobSerializer,
     CreateVideoJobSerializer,
     GenerationJobSerializer,
 )
@@ -82,6 +83,7 @@ class VideoGenerationCreateView(generics.CreateAPIView):
             "quality": d.get("quality"),
             "seed": d.get("seed"),
             "model_type": d.get("model_type", "dop"),
+            "segments": d.get("segments", 1),
             "motion_id": d.get("motion_id"),
             "motion_strength": d.get("motion_strength"),
             "resolution": d.get("resolution"),
@@ -102,52 +104,6 @@ class VideoGenerationCreateView(generics.CreateAPIView):
 
         from .tasks import run_video_generation
         run_video_generation.delay(str(job.id))
-
-        return Response(
-            GenerationJobSerializer(job, context={"request": request}).data,
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-
-class UGCGenerationCreateView(generics.CreateAPIView):
-    """Create a UGC talking-avatar video job (Higgsfield Speak)."""
-
-    serializer_class = CreateUGCJobSerializer
-
-    def create(self, request, *args, **kwargs):
-        if not can_afford(request.user, "ugc"):
-            return Response(
-                {"error": "Insufficient credits to generate a UGC video. Please top up or upgrade your subscription."},
-                status=status.HTTP_402_PAYMENT_REQUIRED,
-            )
-        serializer = CreateUGCJobSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        d = serializer.validated_data
-
-        params = {
-            "image": str(d["image"]),
-            "text": d["text"],
-            "voice": str(d["voice"]) if d.get("voice") else None,
-            "stock_voice_id": d.get("stock_voice_id") or None,
-            "scenario": d.get("scenario", ""),
-            "quality": d.get("quality", "high"),
-            "duration": d.get("duration", 5),
-            "seed": d.get("seed"),
-            "enhance_prompt": d.get("enhance_prompt", True),
-            "model_type": "speak",
-            # Display text for history cards mirrors image/video jobs.
-            "prompt": d["text"],
-        }
-        job = GenerationJob.objects.create(
-            user=request.user,
-            kind=GenerationJob.Kind.UGC,
-            provider="higgsfield",
-            status=GenerationJob.Status.QUEUED,
-            input_params=params,
-        )
-
-        from .tasks import run_ugc_generation
-        run_ugc_generation.delay(str(job.id))
 
         return Response(
             GenerationJobSerializer(job, context={"request": request}).data,
@@ -187,6 +143,101 @@ class TTSGenerationCreateView(generics.CreateAPIView):
 
         from .tasks import run_tts_generation
         run_tts_generation.delay(str(job.id))
+
+        return Response(
+            GenerationJobSerializer(job, context={"request": request}).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class AudioFxCreateView(generics.CreateAPIView):
+    """Generate background music or a sound effect (ElevenLabs) → audio Asset."""
+
+    serializer_class = CreateAudioFxJobSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = CreateAudioFxJobSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+        kind_cost = "music" if d["audio_type"] == "music" else "sfx"
+        if not can_afford(request.user, kind_cost):
+            return Response(
+                {"error": "Insufficient credits. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+
+        params = {
+            "audio_type": d["audio_type"],
+            "prompt": d["prompt"],
+            "length": d.get("length"),
+        }
+        job = GenerationJob.objects.create(
+            user=request.user,
+            kind=GenerationJob.Kind.AUDIO,
+            provider="elevenlabs",
+            status=GenerationJob.Status.QUEUED,
+            input_params=params,
+        )
+
+        from .tasks import run_audio_fx_generation
+        run_audio_fx_generation.delay(str(job.id))
+
+        return Response(
+            GenerationJobSerializer(job, context={"request": request}).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class EditRenderCreateView(generics.CreateAPIView):
+    """Render a single-clip edit: trim the source video + optional voiceover (FFmpeg)."""
+
+    serializer_class = CreateEditJobSerializer
+
+    def create(self, request, *args, **kwargs):
+        if not can_afford(request.user, "edit"):
+            return Response(
+                {"error": "Insufficient credits to render an edit. Please top up or upgrade your subscription."},
+                status=status.HTTP_402_PAYMENT_REQUIRED,
+            )
+        serializer = CreateEditJobSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        d = serializer.validated_data
+
+        clips = [
+            {
+                "source": str(c["source"]),
+                "trim_start": c.get("trim_start", 0.0),
+                "trim_end": c.get("trim_end"),
+            }
+            for c in d["clips"]
+        ]
+        audio_layers = [
+            {
+                "source": str(L["source"]),
+                "offset": L.get("offset", 0.0),
+                "volume": L.get("volume", 0.5),
+            }
+            for L in d.get("audio_layers", [])
+        ]
+        params = {
+            "clips": clips,
+            "voiceover": str(d["voiceover"]) if d.get("voiceover") else None,
+            "voiceover_mode": d.get("voiceover_mode", "keep"),
+            "voiceover_offset": d.get("voiceover_offset", 0.0),
+            "audio_layers": audio_layers,
+            # Mirror the other kinds: `prompt` powers the job's display text.
+            "prompt": f"Video edit ({len(clips)} clip{'s' if len(clips) != 1 else ''})",
+        }
+        job = GenerationJob.objects.create(
+            user=request.user,
+            kind=GenerationJob.Kind.EDIT,
+            provider="ffmpeg",
+            status=GenerationJob.Status.QUEUED,
+            input_params=params,
+        )
+
+        from .tasks import run_edit_render
+        run_edit_render.delay(str(job.id))
 
         return Response(
             GenerationJobSerializer(job, context={"request": request}).data,
@@ -239,6 +290,40 @@ class MotionPromptView(APIView):
         return Response({"prompt": prompt})
 
 
+class AudioSuggestView(APIView):
+    """Let the AI decide a fitting music bed + sound effects for a video.
+
+    Used by the editor's "Auto-score" flow: the creator never types an audio
+    prompt — given a brief (content type, mood, the voiceover script) and the
+    video duration, this returns a music prompt and 0-3 placed sound effects,
+    which the editor then generates and lays under the video automatically.
+    """
+
+    def post(self, request, *args, **kwargs):
+        brief = (request.data.get("brief") or "").strip()
+        if not brief:
+            return Response(
+                {"detail": "brief is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        duration = request.data.get("duration")
+        try:
+            duration = float(duration) if duration is not None else None
+        except (TypeError, ValueError):
+            duration = None
+
+        from prompton.provider import suggest_audio
+
+        try:
+            suggestion = suggest_audio(brief, duration)
+        except Exception as exc:
+            return Response(
+                {"detail": f"Could not suggest audio: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        return Response(suggestion)
+
+
 class GenerationDetailView(generics.RetrieveDestroyAPIView):
     serializer_class = GenerationJobSerializer
 
@@ -247,9 +332,14 @@ class GenerationDetailView(generics.RetrieveDestroyAPIView):
 
     def destroy(self, request, *args, **kwargs):
         job = self.get_object()
-        if job.status not in GenerationJob.TERMINAL:
-            job.status = GenerationJob.Status.CANCELED
-            job.save(update_fields=["status"])
+        # Finished/failed/canceled jobs are safe to remove outright.
+        if job.status in GenerationJob.TERMINAL:
+            job.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        # Still running: cancel rather than delete — a worker mid-flight would
+        # otherwise re-create the deleted row when it saves its result.
+        job.status = GenerationJob.Status.CANCELED
+        job.save(update_fields=["status"])
         return Response(
             GenerationJobSerializer(job, context={"request": request}).data
         )

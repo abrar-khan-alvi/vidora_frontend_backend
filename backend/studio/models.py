@@ -93,6 +93,31 @@ class Character(models.Model):
         return f"{self.name} ({self.status})"
 
 
+class Publication(models.Model):
+    """A finished video the user has "published" — i.e. made shareable.
+
+    Holds a public share token so anyone with the link can view the video
+    without an account (the publish step of the creator flow)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="publications"
+    )
+    asset = models.ForeignKey(
+        Asset, on_delete=models.CASCADE, related_name="publications"
+    )
+    title = models.CharField(max_length=200, blank=True)
+    # Opaque public handle for the share link (no auth needed to view).
+    share_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Publication {self.id} ({self.title or 'Untitled'})"
+
+
 class Voice(models.Model):
     """A cloned voice (VoiceSync AI). Mirrors Character: created from an uploaded
     audio sample, cloned at the provider (ElevenLabs), then reusable for TTS."""

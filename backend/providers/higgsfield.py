@@ -236,55 +236,6 @@ def generate_video(
     return _extract_video_urls(result)
 
 
-def generate_speak(
-    *,
-    image_url: str,
-    audio_url: str,
-    prompt: str,
-    quality: str | None = None,
-    duration: int | None = None,
-    seed: int | None = None,
-    enhance_prompt: bool | None = None,
-) -> list[str]:
-    """Generate a talking-avatar (UGC) video with Higgsfield Speak v2.
-
-    `higgsfield-ai/speak` lip-syncs an avatar image to a speech audio clip.
-    Required: image_url, audio_url, prompt (the scene/expression description).
-    Optional: quality ('high'|'mid'), duration (5|10|15), seed, enhance_prompt.
-    """
-    _ensure_credentials()
-    arguments: dict = {
-        "image_url": image_url,
-        "audio_url": audio_url,
-        "prompt": prompt,
-    }
-    if quality in ("high", "mid"):
-        arguments["quality"] = quality
-    if duration in (5, 10, 15):
-        arguments["duration"] = duration
-    if seed is not None:
-        arguments["seed"] = seed
-    if enhance_prompt is not None:
-        arguments["enhance_prompt"] = enhance_prompt
-
-    try:
-        result = higgsfield_client.subscribe("higgsfield-ai/speak", arguments)
-    except Exception as exc:
-        msg = str(exc).lower()
-        if "not found" in msg or "404" in msg:
-            raise RuntimeError(
-                "The Higgsfield Speak model isn’t enabled on this API key."
-            ) from exc
-        if "internal server error" in msg or "500" in msg:
-            raise RuntimeError(
-                "Higgsfield’s Speak service returned a server error (500). The request "
-                "and inputs are valid, so this is on Higgsfield’s side — please retry in a "
-                "little while, or contact Higgsfield if it persists."
-            ) from exc
-        raise
-    return _extract_video_urls(result)
-
-
 def generate_image(
     *,
     prompt,

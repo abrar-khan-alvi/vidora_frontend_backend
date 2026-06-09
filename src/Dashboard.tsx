@@ -5,7 +5,7 @@ import { OverviewContent } from './pages/Overview';
 import { PromptonContent } from './pages/Prompton';
 import { ImageGenerationContent } from './pages/ImageGeneration';
 import { VideoGenerationContent } from './pages/VideoGeneration';
-import { UGCStudioContent } from './pages/UGCStudio';
+import { EditorContent } from './pages/Editor';
 import { VoiceSyncContent } from './pages/VoiceSync';
 import { SubscriptionsContent } from './pages/Subscriptions';
 import { HistoryLogsContent } from './pages/HistoryLogs';
@@ -16,7 +16,8 @@ export const DashboardScreen = () => {
   const navigate = useNavigate();
   // The parent route is "/dashboard/*", so the tab lives in the splat param.
   const { '*': splat } = useParams();
-  const activeTab = splat || 'overview';
+  // The assistant is the entry point — it conducts the whole creation flow.
+  const activeTab = splat || 'prompton';
   const setActiveTab = (tab: string) => navigate(`/dashboard/${tab}`);
 
   const renderContent = () => {
@@ -25,7 +26,7 @@ export const DashboardScreen = () => {
       case 'image-generation': return <ImageGenerationContent />;
       case 'references': return <ReferencesContent />;
       case 'video-generation': return <VideoGenerationContent />;
-      case 'ugc': return <UGCStudioContent />;
+      case 'editor': return <EditorContent />;
       case 'voicesync': return <VoiceSyncContent />;
       case 'subscriptions': return <SubscriptionsContent />;
       case 'history': return <HistoryLogsContent />;

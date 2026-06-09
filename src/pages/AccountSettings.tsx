@@ -267,7 +267,7 @@ export const AccountSettingsContent = () => {
           <div className="flex items-start gap-2.5 mt-4 bg-[#F59E0B]/5 border border-[#F59E0B]/15 rounded-xl px-3.5 py-3">
             <Clock size={15} className="text-[#F59E0B] shrink-0 mt-0.5" />
             <p className="text-[12.5px] text-[#C9A07A] leading-relaxed">
-              Training a reference runs on Higgsfield’s servers and is mostly <span className="text-white">queue time</span> — typically <span className="text-white">5–15 minutes</span> before it even starts, depending on their load. Vidora keeps polling and your reference flips to <span className="text-[#34D399]">Ready</span> automatically when it’s done — you can leave this page.
+              Training a reference runs on our training servers and is mostly <span className="text-white">queue time</span> — typically <span className="text-white">5–15 minutes</span> before it even starts, depending on current load. Vidora keeps polling and your reference flips to <span className="text-[#34D399]">Ready</span> automatically when it’s done — you can leave this page.
             </p>
           </div>
         )}

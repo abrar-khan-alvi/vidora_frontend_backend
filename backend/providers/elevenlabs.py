@@ -62,37 +62,43 @@ def text_to_speech(voice_id: str, text: str, model_id: str | None = None) -> byt
     return resp.content
 
 
-def text_to_speech_wav(voice_id: str, text: str, model_id: str | None = None) -> bytes:
-    """Synthesize `text` and return WAV (PCM) bytes — for providers that require
-    `audio/x-wav` (e.g. Higgsfield Speak). ElevenLabs returns raw PCM when asked
-    for `pcm_24000`; we wrap it in a WAV container with the standard `wave` module
-    (no ffmpeg needed). 24 kHz, 16-bit, mono.
-    """
-    import io
-    import wave
+def generate_music(prompt: str, length_ms: int | None = None) -> bytes:
+    """Generate a background music track from a text prompt (Eleven Music).
 
-    rate = 24000
-    body = {
-        "text": text,
-        "model_id": model_id or settings.ELEVENLABS_TTS_MODEL,
-    }
+    `POST /v1/music` returns mp3 audio. `music_length_ms` is optional (the model
+    picks a sensible length otherwise); the API floor is ~10s.
+    """
+    body: dict = {"prompt": prompt}
+    if length_ms:
+        body["music_length_ms"] = int(length_ms)
     resp = httpx.post(
-        f"{_base()}/v1/text-to-speech/{voice_id}",
-        headers=_headers({"Content-Type": "application/json"}),
-        params={"output_format": f"pcm_{rate}"},
+        f"{_base()}/v1/music",
+        headers=_headers({"Content-Type": "application/json", "Accept": "audio/mpeg"}),
+        json=body,
+        timeout=300,
+    )
+    resp.raise_for_status()
+    return resp.content
+
+
+def generate_sound_effect(text: str, duration_seconds: float | None = None,
+                          prompt_influence: float = 0.3) -> bytes:
+    """Generate a sound effect / ambience clip from a text prompt.
+
+    `POST /v1/sound-generation` returns mp3 audio. `duration_seconds` is optional
+    (auto if omitted); max ~22s.
+    """
+    body: dict = {"text": text, "prompt_influence": prompt_influence}
+    if duration_seconds:
+        body["duration_seconds"] = float(duration_seconds)
+    resp = httpx.post(
+        f"{_base()}/v1/sound-generation",
+        headers=_headers({"Content-Type": "application/json", "Accept": "audio/mpeg"}),
         json=body,
         timeout=180,
     )
     resp.raise_for_status()
-    pcm = resp.content
-
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as wav:
-        wav.setnchannels(1)
-        wav.setsampwidth(2)  # 16-bit
-        wav.setframerate(rate)
-        wav.writeframes(pcm)
-    return buf.getvalue()
+    return resp.content
 
 
 def delete_voice(voice_id: str) -> None:

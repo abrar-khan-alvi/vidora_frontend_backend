@@ -3,11 +3,11 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Plus, ArrowUp, Copy, Check, Square, Trash2,
-  MessageSquare, History, ArrowLeft, X, Sparkles, Film, Mic, ImagePlus
+  MessageSquare, History, ArrowLeft, X, Sparkles, Film, Mic, ImagePlus, Smile, ChevronDown, Music
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useCreationFlow } from '../lib/creationFlow';
-import { uploadAsset } from '../lib/api/studio';
+import { uploadAsset, referenceApi, type TrainedReference } from '../lib/api/studio';
 import {
   promptonApi,
   streamMessage,
@@ -15,8 +15,9 @@ import {
   type PromptonMessage,
 } from '../lib/api/prompton';
 
-const CodeBlock = ({ text, kind }: { text: string; kind?: string }) => {
+const CodeBlock = ({ text, kind, aspect }: { text: string; kind?: string; aspect?: string }) => {
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState(false);
   const flow = useCreationFlow();
   const copy = () => {
     navigator.clipboard.writeText(text);
@@ -26,16 +27,19 @@ const CodeBlock = ({ text, kind }: { text: string; kind?: string }) => {
 
   const isImage = kind === 'image-prompt';
   const isVideo = kind === 'video-prompt';
-  const label = isImage ? 'Image Prompt' : isVideo ? 'Video Prompt' : 'Output';
+  const isScript = kind === 'script';
+  const isMusic = kind === 'music';
+  const accent = isImage || isVideo || isScript || isMusic;
+  const label = isImage ? 'Image Prompt' : isVideo ? 'Video Prompt' : isScript ? 'Voiceover Script' : isMusic ? 'Music Prompt' : 'Output';
 
   return (
-    <div className={`my-3 rounded-xl border bg-[#0A0A0C] overflow-hidden ${isImage || isVideo ? 'border-[#9758FF]/30' : 'border-white/[0.08]'}`}>
+    <div className={`my-3 rounded-xl border bg-[#0A0A0C] overflow-hidden ${accent ? 'border-[#9758FF]/30' : 'border-white/[0.08]'}`}>
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.04]">
-        <span className={`text-[11px] uppercase tracking-wider font-semibold ${isImage || isVideo ? 'text-[#C9A8FF]' : 'text-[#7A7A80]'}`}>{label}</span>
+        <span className={`text-[11px] uppercase tracking-wider font-semibold ${accent ? 'text-[#C9A8FF]' : 'text-[#7A7A80]'}`}>{label}</span>
         <div className="flex items-center gap-1">
           {isImage && (
             <button
-              onClick={() => flow.startImage({ prompt: text.trim() })}
+              onClick={() => flow.startImage({ prompt: text.trim(), aspect })}
               className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-[#9758FF] hover:bg-[#854EE6] px-2.5 py-1 rounded-md transition-colors"
               title="Generate this image now"
             >
@@ -49,6 +53,24 @@ const CodeBlock = ({ text, kind }: { text: string; kind?: string }) => {
               title="Generate this video now"
             >
               <Film size={12} /> Create Video
+            </button>
+          )}
+          {isScript && (
+            <button
+              onClick={() => { flow.setScript(text.trim()); setSaved(true); setTimeout(() => setSaved(false), 1800); }}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-[#9758FF] hover:bg-[#854EE6] px-2.5 py-1 rounded-md transition-colors"
+              title="Use this as the AI voiceover in the editor"
+            >
+              {saved ? <Check size={12} /> : <Mic size={12} />} {saved ? 'Saved for editor' : 'Use as voiceover'}
+            </button>
+          )}
+          {isMusic && (
+            <button
+              onClick={() => { flow.setMusicPrompt(text.trim()); setSaved(true); setTimeout(() => setSaved(false), 1800); }}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-[#9758FF] hover:bg-[#854EE6] px-2.5 py-1 rounded-md transition-colors"
+              title="Use this as the background music in the editor"
+            >
+              {saved ? <Check size={12} /> : <Music size={12} />} {saved ? 'Saved for editor' : 'Use as music'}
             </button>
           )}
           <button
@@ -97,12 +119,15 @@ const renderContent = (content: string): React.ReactNode[] => {
 
   fenceSplit.forEach((chunk, ci) => {
     if (chunk.startsWith('```')) {
-      // Capture the fence language tag (e.g. image-prompt / video-prompt) so the
-      // code block can show a matching "Create" button, then strip the fences.
-      const langMatch = chunk.match(/^```([a-zA-Z0-9-]*)\n?/);
-      const lang = (langMatch?.[1] || '').toLowerCase();
-      const body = chunk.replace(/^```[a-zA-Z0-9-]*\n?/, '').replace(/\n?```$/, '');
-      output.push(<CodeBlock key={`cb-${ci}`} text={body} kind={lang} />);
+      // Capture the fence info line (e.g. `image-prompt 16:9`) so the code block
+      // can show a matching "Create" button and carry the target aspect ratio,
+      // then strip the fences.
+      const infoMatch = chunk.match(/^```([a-zA-Z0-9-]*)([^\n]*)\n?/);
+      const lang = (infoMatch?.[1] || '').toLowerCase();
+      const aspectMatch = (infoMatch?.[2] || '').match(/\b(\d{1,2}:\d{1,2})\b/);
+      const aspect = aspectMatch?.[1];
+      const body = chunk.replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, '');
+      output.push(<CodeBlock key={`cb-${ci}`} text={body} kind={lang} aspect={aspect} />);
       return;
     }
 
@@ -311,7 +336,10 @@ const TEMPLATES = [
 ];
 
 export const PromptonContent = () => {
-  const { user } = useAuth();
+  useAuth();
+  const flow = useCreationFlow();
+  const [references, setReferences] = useState<TrainedReference[]>([]);
+  const [charMenuOpen, setCharMenuOpen] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<PromptonMessage[]>([]);
@@ -351,6 +379,7 @@ export const PromptonContent = () => {
 
   useEffect(() => {
     promptonApi.list().then(setConversations).catch(() => { });
+    referenceApi.list().then((r) => setReferences(r.filter((x) => x.status === 'ready'))).catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -496,6 +525,52 @@ export const PromptonContent = () => {
   const composerEl = (
     <div className="w-full relative max-w-[1240px] mx-auto">
       <div className="bg-[#101014]/90 backdrop-blur-md border border-white/[0.08] rounded-[24px] p-2 focus-within:border-[#9758FF]/50 focus-within:shadow-[0_0_20px_rgba(151,88,255,0.15)] transition-all shadow-lg">
+        {/* Character to feature — kept and carried into image generation */}
+        <div className="relative flex items-center gap-2 px-2 pt-1.5 pb-1">
+          <span className="text-[11px] text-[#7A7A80] font-medium">Character:</span>
+          {flow.character ? (
+            <span className="flex items-center gap-1.5 pl-1.5 pr-1 py-1 rounded-lg bg-[#9758FF]/12 border border-[#9758FF]/40 text-[12px] text-white">
+              <Smile size={12} className="text-[#9758FF]" />
+              {flow.character.name}
+              <button onClick={() => flow.setCharacter(null)} className="text-[#C9A8FF] hover:text-white p-0.5 rounded hover:bg-white/10" title="Clear character">
+                <X size={11} />
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setCharMenuOpen((o) => !o)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#24242B] bg-[#08080A]/40 text-[#A1A1A5] hover:text-white hover:border-[#3A3A40] text-[12px] transition-all"
+            >
+              <Smile size={13} className="text-[#9758FF]" /> Use a character <ChevronDown size={12} />
+            </button>
+          )}
+          {charMenuOpen && !flow.character && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setCharMenuOpen(false)} />
+              <div className="absolute left-0 bottom-full mb-2 z-40 w-64 max-h-64 overflow-y-auto bg-[#161619] border border-[#24242B] rounded-xl shadow-xl py-1.5">
+                {references.length === 0 ? (
+                  <p className="px-3 py-2 text-[12px] text-[#7A7A80]">No trained characters yet. Train one under “Create Your Identity.”</p>
+                ) : (
+                  references.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => { flow.setCharacter({ id: r.id, name: r.name }); setCharMenuOpen(false); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-white/[0.04] text-[#EAEAEA] text-[13px]"
+                    >
+                      {r.thumbnail_url ? (
+                        <img src={r.thumbnail_url} alt={r.name} className="h-7 w-7 rounded-md object-cover border border-white/[0.06]" />
+                      ) : (
+                        <span className="h-7 w-7 rounded-md bg-[#9758FF]/20 flex items-center justify-center"><Smile size={13} className="text-[#9758FF]" /></span>
+                      )}
+                      <span className="truncate">{r.name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Attached images (e.g. a product) the assistant will see */}
         {(attachments.length > 0 || uploading) && (
           <div className="flex flex-wrap items-center gap-2 px-2 pt-1.5 pb-2">

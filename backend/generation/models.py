@@ -9,7 +9,7 @@ class GenerationJob(models.Model):
         IMAGE = "image", "Image"
         VIDEO = "video", "Video"
         AUDIO = "audio", "Audio"
-        UGC = "ugc", "UGC"  # talking-avatar video (Higgsfield Speak)
+        EDIT = "edit", "Edit"
 
     class Status(models.TextChoices):
         QUEUED = "queued", "Queued"

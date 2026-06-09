@@ -11,13 +11,14 @@ import {
 } from './Screens';
 import { DashboardScreen } from './Dashboard';
 import { LandingPage } from './pages/LandingPage';
+import { SharePage } from './pages/SharePage';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute';
 
 // Maps the legacy screen names (still used throughout the UI) to real URLs.
 const screenToPath: Record<string, string> = {
   LANDING: '/',
-  DASHBOARD: '/dashboard/overview',
+  DASHBOARD: '/dashboard/prompton',
   LOGIN: '/login',
   CREATE_ACCOUNT: '/signup',
   FORGOT_PASSWORD: '/forgot-password',
@@ -70,6 +71,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage setScreen={setScreen} />} />
+
+      {/* Public share page — no auth required */}
+      <Route path="/share/:token" element={<SharePage />} />
 
       {/* Authenticated area */}
       <Route element={<ProtectedRoute />}>

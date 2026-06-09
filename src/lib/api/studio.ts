@@ -16,10 +16,32 @@ export interface UploadedAsset {
 export const studioApi = {
   /** The user's reusable photo library (uploaded images). */
   listReferences: () => apiFetch<UploadedAsset[]>('/studio/references/', { auth: true }),
+  /** The user's video/audio Assets (for the editor). Optionally filter by type. */
+  listMedia: (type?: 'video' | 'audio') =>
+    apiFetch<UploadedAsset[]>(`/studio/media/${type ? `?type=${type}` : ''}`, { auth: true }),
   rename: (id: string, name: string) =>
     apiFetch<UploadedAsset>(`/studio/assets/${id}/`, { method: 'PATCH', auth: true, body: { name } }),
   remove: (id: string) =>
     apiFetch<null>(`/studio/assets/${id}/`, { method: 'DELETE', auth: true }),
+};
+
+/** A published (shareable) video. */
+export interface Publication {
+  id: string;
+  title: string;
+  share_token: string;
+  video_url: string;
+  created_at: string;
+}
+
+export const publicationApi = {
+  list: () => apiFetch<Publication[]>('/studio/publications/', { auth: true }),
+  create: (asset_id: string, title: string) =>
+    apiFetch<Publication>('/studio/publications/', { method: 'POST', auth: true, body: { asset_id, title } }),
+  remove: (id: string) =>
+    apiFetch<null>(`/studio/publications/${id}/`, { method: 'DELETE', auth: true }),
+  /** Public, no-auth fetch of a shared video by its token. */
+  getShare: (token: string) => apiFetch<Publication>(`/studio/share/${token}/`),
 };
 
 /** A trained reference ("SoulId") created from one or more library photos. */
@@ -52,6 +74,41 @@ export async function uploadAsset(file: File): Promise<UploadedAsset> {
     const form = new FormData();
     form.append('file', file);
     return fetch(`${API_BASE_URL}/studio/assets/`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  };
+
+  let res = await send(tokenStorage.getAccess());
+  if (res.status === 401) {
+    const newAccess = await refreshAccessToken();
+    if (newAccess) res = await send(newAccess);
+  }
+
+  if (!res.ok) {
+    let data: unknown = null;
+    try {
+      data = await res.json();
+    } catch {
+      /* ignore */
+    }
+    throw new ApiError(`Upload failed (${res.status})`, res.status, data);
+  }
+  return res.json() as Promise<UploadedAsset>;
+}
+
+/**
+ * Upload a video or audio clip (multipart) to the editor media library.
+ *
+ * Mirrors `uploadAsset` but hits `/studio/media/`, which accepts non-image
+ * media (the image-only `/studio/assets/` endpoint rejects video/audio).
+ */
+export async function uploadMediaAsset(file: File): Promise<UploadedAsset> {
+  const send = (token: string | null) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(`${API_BASE_URL}/studio/media/`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form,

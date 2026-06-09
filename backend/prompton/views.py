@@ -6,7 +6,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from studio.models import Asset
+from studio.models import Asset, Character
 
 from .models import Conversation, Message
 from .provider import stream_reply
@@ -73,6 +73,26 @@ def _history_for_api(conversation, user):
     return history
 
 
+def _user_context(user) -> str:
+    """Per-user context for the assistant — currently the creator's trained
+    characters, so it can offer them by name and keep that choice in mind."""
+    names = [
+        n for n in Character.objects.filter(
+            user=user, status=Character.Status.READY
+        ).values_list("name", flat=True) if n
+    ]
+    if names:
+        return (
+            "CREATOR CONTEXT — the user's trained characters they can feature "
+            f"(refer to them by name): {', '.join(names)}. If they want a consistent "
+            "person, offer one of these and tell them to keep it selected on the image screen."
+        )
+    return (
+        "CREATOR CONTEXT — the user has no trained characters yet. If they want a "
+        "consistent person across shots, suggest training one under 'Create Your Identity'."
+    )
+
+
 class ConversationListCreateView(generics.ListCreateAPIView):
     serializer_class = ConversationListSerializer
 
@@ -123,11 +143,12 @@ class StreamMessageView(APIView):
             conversation.save(update_fields=["title", "updated_at"])
 
         history = _history_for_api(conversation, request.user)
+        context = _user_context(request.user)
 
         def event_stream():
             chunks = []
             try:
-                for kind, payload in stream_reply(history):
+                for kind, payload in stream_reply(history, context):
                     if kind == "delta":
                         chunks.append(payload)
                         yield _sse({"type": "delta", "text": payload})

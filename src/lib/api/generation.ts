@@ -21,6 +21,9 @@ export interface GenerationJob {
   created_at: string;
   completed_at: string | null;
   input_params?: any;
+  /** The start/end frames a video job used — lets a past job be re-run. */
+  source_frame?: GenAsset | null;
+  end_frame?: GenAsset | null;
 }
 
 export interface CreateImageParams {
@@ -51,6 +54,8 @@ export interface CreateVideoParams {
   quality?: string | null;
   seed?: number | null;
   model_type?: 'dop' | 'seedance' | 'kling';
+  /** DoP segments chained into one clip (1≈5s, 2≈10s, 3≈15s, 4≈20s). */
+  segments?: number;
   motion_id?: string | null;
   motion_strength?: number | null;
   resolution?: string | null;
@@ -62,23 +67,6 @@ export interface CreateVideoParams {
   check_nsfw?: boolean;
 }
 
-export interface CreateUGCParams {
-  /** Avatar image Asset id (uploaded or picked). */
-  image: string;
-  /** The script to be spoken. */
-  text: string;
-  /** A ready cloned Voice id… */
-  voice?: string | null;
-  /** …or a built-in ElevenLabs stock voice id. */
-  stock_voice_id?: string | null;
-  /** Higgsfield Speak `prompt` — the scene/expression description. */
-  scenario?: string;
-  quality?: 'high' | 'mid';
-  duration?: 5 | 10 | 15;
-  seed?: number | null;
-  enhance_prompt?: boolean;
-}
-
 export interface CreateTTSParams {
   /** A ready cloned Voice id to speak in. */
   voice?: string | null;
@@ -87,21 +75,76 @@ export interface CreateTTSParams {
   text: string;
 }
 
+export interface EditClipInput {
+  /** A video Asset id. */
+  source: string;
+  trim_start?: number;
+  /** null → trim to the end of the clip. */
+  trim_end?: number | null;
+}
+
+/** A music/SFX audio Asset mixed under the video at an offset + volume. */
+export interface AudioLayerInput {
+  source: string;
+  offset?: number;
+  volume?: number;
+}
+
+export interface CreateEditParams {
+  /** Ordered clips to trim and join into one video. */
+  clips: EditClipInput[];
+  /** An audio Asset id to lay over the joined video. */
+  voiceover?: string | null;
+  voiceover_mode?: 'keep' | 'replace' | 'mix';
+  /** Seconds into the joined video where the voiceover starts. */
+  voiceover_offset?: number;
+  /** Music/SFX layers mixed under the video. */
+  audio_layers?: AudioLayerInput[];
+}
+
+export interface CreateAudioFxParams {
+  audio_type: 'music' | 'sfx';
+  prompt: string;
+  /** Seconds — music length or SFX duration (optional). */
+  length?: number | null;
+}
+
+/** An AI-decided sound effect: what it is + where it should land (seconds). */
+export interface SuggestedSfx {
+  description: string;
+  at: number;
+}
+
+/** The AI's audio plan for a video: one music bed + 0-3 placed sound effects. */
+export interface AudioSuggestion {
+  music: string;
+  sfx: SuggestedSfx[];
+}
+
 export const generationApi = {
   createImage: (params: CreateImageParams) =>
     apiFetch<GenerationJob>('/generations/', { method: 'POST', auth: true, body: params }),
   createVideo: (params: CreateVideoParams) =>
     apiFetch<GenerationJob>('/generations/video/', { method: 'POST', auth: true, body: params }),
-  createUGC: (params: CreateUGCParams) =>
-    apiFetch<GenerationJob>('/generations/ugc/', { method: 'POST', auth: true, body: params }),
   createTTS: (params: CreateTTSParams) =>
     apiFetch<GenerationJob>('/generations/tts/', { method: 'POST', auth: true, body: params }),
+  createEdit: (params: CreateEditParams) =>
+    apiFetch<GenerationJob>('/generations/edit/', { method: 'POST', auth: true, body: params }),
+  createAudioFx: (params: CreateAudioFxParams) =>
+    apiFetch<GenerationJob>('/generations/audio/', { method: 'POST', auth: true, body: params }),
+  /** Let the AI decide a fitting music bed + sound effects from a video brief. */
+  suggestAudio: (brief: string, duration?: number | null) =>
+    apiFetch<AudioSuggestion>('/generations/audio/suggest/', {
+      method: 'POST', auth: true, body: { brief, duration },
+    }),
   get: (id: string) => apiFetch<GenerationJob>(`/generations/${id}/`, { auth: true }),
+  /** Delete a finished/failed job (cancels it first if still running). */
+  remove: (id: string) => apiFetch<void>(`/generations/${id}/`, { method: 'DELETE', auth: true }),
   list: () => apiFetch<GenerationJob[]>('/generations/?kind=image', { auth: true }),
   listAll: () => apiFetch<GenerationJob[]>('/generations/', { auth: true }),
   listVideos: () => apiFetch<GenerationJob[]>('/generations/?kind=video', { auth: true }),
-  listUGC: () => apiFetch<GenerationJob[]>('/generations/?kind=ugc', { auth: true }),
   listAudio: () => apiFetch<GenerationJob[]>('/generations/?kind=audio', { auth: true }),
+  listEdits: () => apiFetch<GenerationJob[]>('/generations/?kind=edit', { auth: true }),
   listStyles: () => apiFetch<StylePreset[]>('/generations/styles/', { auth: true }),
   /** Draft a motion (video) prompt from a still-image prompt — for image → video. */
   suggestMotionPrompt: (image_prompt: string) =>
