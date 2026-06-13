@@ -10,3 +10,8 @@ coverage/
 # Exported Claude conversation (contains pasted secrets - do not commit)
 vidora-claude-conversation.md
 vidora-claude-conversation.jsonl
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
