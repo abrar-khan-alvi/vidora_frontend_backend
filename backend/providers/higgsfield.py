@@ -37,7 +37,11 @@ def _auth_headers() -> dict:
 # not an inline image. We create one from the user's photo(s), poll until it's
 # ready, then pass its id as `style_id` when generating.
 
-READY_STATUSES = {"completed", "ready", "succeeded", "success"}
+# Higgsfield reports "ready" EARLY (the reference was accepted; training hasn't
+# finished) and only "completed" once it's actually trained and usable. Treating
+# "ready" as done marked characters usable mid-training, so generation failed with
+# "character_not_found". Only a true completion status counts as ready.
+READY_STATUSES = {"completed", "succeeded", "success"}
 FAILED_STATUSES = {"failed", "error", "canceled", "cancelled", "nsfw"}
 
 
